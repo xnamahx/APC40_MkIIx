@@ -638,6 +638,8 @@ class CustomSessionComponent(CompoundComponent):
     def _copy_value(self, value):
         assert self._copy_button != None
         self._copy_button = value != 0
+        if not self._copy_button:
+            self.clip_slot_copy_handler.stop_copying()
         return
 
     def set_paste_button(self, button):
@@ -652,13 +654,13 @@ class CustomSessionComponent(CompoundComponent):
 
 
     def add_clip_button_function(self):
-      clip_slot_copy_handler = CustomClipSlotCopyHandler()
+      self.clip_slot_copy_handler = CustomClipSlotCopyHandler()
       for scene_index in xrange(self._num_scenes):
         scene = self.scene(scene_index)
         for track_index in xrange(self._num_tracks):
           clip_slot = scene.clip_slot(track_index)
           clip_slot.set_delete_button(self._delete_button)
-          clip_slot.set_copy_button(self._copy_button, clip_slot_copy_handler)
+          clip_slot.set_copy_button(self._copy_button, self.clip_slot_copy_handler)
           clip_slot.set_paste_button(self._paste_button)
 
     def link_with_track_offset(self, track_offset):

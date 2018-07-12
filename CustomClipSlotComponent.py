@@ -50,7 +50,6 @@ class CustomClipSlotComponent(ClipSlotComponent):
         pass
 
 
-
   def set_delete_button(self, button):
     self._delete_button = button
 
