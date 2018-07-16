@@ -37,6 +37,7 @@ from APCSequencer_LEWa.ButtonSliderElement import ButtonSliderElement
 from APCSequencer_LEWa.LooperComponent import LooperComponent
 
 from APCSequencer_LEWa.StepSeqComponent import StepSeqComponent
+from APCSequencer_LEWa.ControlElementUtils import make_button as make_custom_button
 
 import pydevd
 
@@ -94,7 +95,7 @@ class APC40_MkII(APC, OptimizedControlSurface):
             return make_color_button(0, 32 + track - NUM_TRACKS * scene, name='%d_Clip_%d_Button' % (track, scene))
 
         def make_stop_button(track):
-            return make_button(track, 52, name='%d_Stop_Button' % track, skin=self._stop_button_skin)
+            return make_custom_button(track, 52, name='%d_Stop_Button' % track, skin=self._stop_button_skin)
 
         self._metronome_button = make_button(0, 90, name='Delete_Button')
         self._shift_button = make_button(0, 98, name='Shift_Button', resource_type=PrioritizedResource)
@@ -230,7 +231,7 @@ class APC40_MkII(APC, OptimizedControlSurface):
          DelayMode(AddLayerMode(self._mixer, Layer(send_select_buttons=self._send_select_buttons)))])
         self._encoder_mode.add_mode('user', [
          AddLayerMode(self._mixer, Layer(user_controls=self._mixer_encoders))])
-        self._encoder_mode.layer = Layer(pan_button=self._pan_button, sends_button=self._sends_button, user_button=self._user_button)
+        self._encoder_mode.layer = Layer(pan_button=self._pan_button, sends_button=self._sends_button)#, user_button=self._user_button)
         self._encoder_mode.selected_mode = 'pan'
 
     def _create_transport(self):
@@ -267,15 +268,12 @@ class APC40_MkII(APC, OptimizedControlSurface):
         self._session_mode.add_mode('session', self._session_mode_layers())
         self._session_mode.add_mode('session_2', self._session_mode_layers())
         self._session_mode.add_mode('sequencer', (self._sequencer, self._sequencer_layer()))
-
-        #   self._session_mode.add_mode('instrument', (self._instrument, self._instrument_layer()))
+        self._session_mode.add_mode('instrument', (self._instrument, self._instrument_layer()))
 
         self._session_mode.layer = Layer(
-            session_button=self._pan_button,
-            session_2_button=self._sends_button,
-
-            #    instrument_button = self._user_button)#,
-
+            #session_button=self._pan_button,
+            #session_2_button=self._sends_button,
+            #instrument_button = self._user_button)#,
             sequencer_button=self._user_button)
 
         self._session_mode.selected_mode = "session"
@@ -316,8 +314,8 @@ class APC40_MkII(APC, OptimizedControlSurface):
             # changed from [:8, :1] no change noticed as of yet
             drum_bank_up_button=self._right_button,
             drum_bank_down_button=self._left_button
-            # octave_up_button = self._right_button,
-            # octave_down_button = self._left_button
+            #octave_up_button=self._right_button,
+            #octave_down_button=self._left_button
         )
 
     def _instrument_layer(self):
@@ -329,35 +327,6 @@ class APC40_MkII(APC, OptimizedControlSurface):
             short_loop_selector_matrix=self._double_press_event_matrix.submatrix[:8, :1],  # [:, 0],
             note_editor_matrices=ButtonMatrixElement([[self._session_matrix.submatrix[:, 7 - row] for row in xrange(
                 7)]]))  # self._session_matrix.submatrix[:, 7 - row] for row in xrange(7)
-
-    def _session_layer(self):
-        def when_bank_on(button):
-            return self._bank_toggle.create_toggle_element(on_control=button)
-
-        def when_bank_off(button):
-            return self._bank_toggle.create_toggle_element(off_control=button)
-
-        return Layer(
-            track_bank_left_button=when_bank_off(self._left_button),
-            track_bank_right_button=when_bank_off(self._right_button),
-            scene_bank_up_button=when_bank_off(self._up_button),
-            scene_bank_down_button=when_bank_off(self._down_button),
-            page_left_button=when_bank_on(self._left_button),
-            page_right_button=when_bank_on(self._right_button),
-            page_up_button=when_bank_on(self._up_button),
-            page_down_button=when_bank_on(self._down_button),
-            stop_track_clip_buttons=self._stop_buttons,
-            stop_all_clips_button=self._stop_all_button,
-            scene_launch_buttons=self._scene_launch_buttons,
-            clip_launch_buttons=self._session_matrix)
-
-    def _session_zoom_layer(self):
-        return Layer(button_matrix=self._shifted_matrix,
-                     nav_left_button=self._with_shift(self._left_button),
-                     nav_right_button=self._with_shift(self._right_button),
-                     nav_up_button=self._with_shift(self._up_button),
-                     nav_down_button=self._with_shift(self._down_button),
-                     scene_bank_buttons=self._shifted_scene_buttons)
 
     def _init_auto_arm(self):
         self._auto_arm = AutoArmComponent(is_enabled=True)
@@ -380,8 +349,8 @@ class APC40_MkII(APC, OptimizedControlSurface):
 
     def _on_selected_track_changed(self):
         self.reset_controlled_track()
-        '''if self._auto_arm.needs_restore_auto_arm:
-            self.schedule_message(1, self._auto_arm.restore_auto_arm)'''
+        if self._auto_arm.needs_restore_auto_arm:
+            self.schedule_message(1, self._auto_arm.restore_auto_arm)
 
     def make_injector(self):
         """ Adds some additional stuff to the injector, used in BaseMessenger """

@@ -536,12 +536,12 @@ class CustomSessionComponent(CompoundComponent):
 
     def _do_show_highlight(self):
         if self._highlighting_callback != None:
-            return_tracks = self.song().return_tracks
-            include_returns = len(return_tracks) > 0 and return_tracks[0] in self.tracks_to_use()
             if self._show_highlight:
+                return_tracks = self.song().return_tracks
+                include_returns = len(return_tracks) > 0 and return_tracks[0] in self.tracks_to_use()
                 self._highlighting_callback(self._track_offset, self._scene_offset, self.width(), self.height(), include_returns)
-            else:
-                self._highlighting_callback(-1, -1, -1, -1, include_returns)
+            '''else:
+                self._highlighting_callback(-1, -1, -1, -1, include_returns)'''
         return
 
     @subject_slot_group('fired_slot_index')
