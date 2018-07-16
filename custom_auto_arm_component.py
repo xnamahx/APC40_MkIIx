@@ -5,11 +5,13 @@ Component that automatically arms the selected track.
 from itertools import ifilter
 from _Framework.SubjectSlot import subject_slot, subject_slot_group
 from _Framework.CompoundComponent import CompoundComponent
-from _Framework.ModesComponent import LatchingBehaviour
+from _Framework.ModesComponent import ModeButtonBehaviour
 from _Framework.Util import forward_property, mixin
 from _PushLegacy.MessageBoxComponent import NotificationComponent
+from ableton.v2.control_surface import Component
+from pushbase.message_box_component import Messenger
 
-class AutoArmRestoreBehaviour(LatchingBehaviour):
+class AutoArmRestoreBehaviour(ModeButtonBehaviour):
     """
     Mode button behaviour that auto-arm is enabled when the mode is
     activated. If it is not, then it will make the button blink and
@@ -24,7 +26,8 @@ class AutoArmRestoreBehaviour(LatchingBehaviour):
         super(AutoArmRestoreBehaviour, self).__init__(*a, **k)
         self._auto_arm = auto_arm
         self._last_update_params = None
-        self._skip_super = False
+        self._should_call_super = True
+        return
 
     def _mode_is_active(self, component, mode, selected_mode):
         groups = component.get_mode_groups(mode)
@@ -32,37 +35,33 @@ class AutoArmRestoreBehaviour(LatchingBehaviour):
         return mode == selected_mode or bool(groups & selected_groups)
 
     def press_immediate(self, component, mode):
-        called_super = False
         if component.selected_mode != mode:
-            called_super = True
-            super(AutoArmRestoreBehaviour, self).press_immediate(component, mode)
+            component.push_mode(mode)
+            self._should_call_super = False
+        else:
+            self._should_call_super = True
         if self._auto_arm.needs_restore_auto_arm:
             self._auto_arm.restore_auto_arm()
-        elif not called_super:
-            called_super = True
-            super(AutoArmRestoreBehaviour, self).press_immediate(component, mode)
-        self._skip_super = not called_super
+            self._should_call_super = False
 
     def press_delayed(self, component, mode):
-        if not self._skip_super:
+        if self._should_call_super:
             super(AutoArmRestoreBehaviour, self).press_delayed(component, mode)
 
     def release_immediate(self, component, mode):
-        if not self._skip_super:
+        if self._should_call_super:
             super(AutoArmRestoreBehaviour, self).release_immediate(component, mode)
 
     def release_delayed(self, component, mode):
-        if not self._skip_super:
+        if not self._should_call_super or len(component.active_modes) > 1:
+            component.pop_mode(mode)
+        else:
             super(AutoArmRestoreBehaviour, self).release_delayed(component, mode)
 
     def update_button(self, component, mode, selected_mode):
         self._last_update_params = (component, mode, selected_mode)
         button = component.get_mode_button(mode)
-        if button:
-            if self._mode_is_active(component, mode, selected_mode):
-                button.set_light('DefaultButton.Alert' if self._auto_arm.needs_restore_auto_arm else True)
-            else:
-                button.set_light(False)
+        button.mode_selected_color = 'DefaultButton.Alert' if self._auto_arm.needs_restore_auto_arm else 'DefaultButton.On'
 
     def update(self):
         if self._last_update_params:
@@ -148,7 +147,7 @@ class AutoArmComponent(CompoundComponent):
     def _on_tracks_changed(self):
         tracks = filter(lambda t: t.can_be_armed, self.song().tracks)
         self._on_arm_changed.replace_subjects(tracks)
-        self._on_current_input_routing_changed.replace_subjects(tracks)
+        self._on_input_routing_type_changed.replace_subjects(tracks)
         self._on_frozen_state_changed.replace_subjects(tracks)
 
     @subject_slot('exclusive_arm')
@@ -159,8 +158,8 @@ class AutoArmComponent(CompoundComponent):
     def _on_arm_changed(self, track):
         self.update()
 
-    @subject_slot_group('current_input_routing')
-    def _on_current_input_routing_changed(self, track):
+    @subject_slot_group('input_routing_type')
+    def _on_input_routing_type_changed(self, track):
         self.update()
 
     @subject_slot_group('is_frozen')

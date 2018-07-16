@@ -201,7 +201,6 @@ class APC40_MkII(APC, OptimizedControlSurface):
         self._session.set_delete_button(self._metronome_button)
         self._session.set_copy_button(self._nudge_down_button)
         self._session.set_paste_button(self._nudge_up_button)
-        #self._session.set_delete_button(self._nudge_down_button)
 
         self._session.add_clip_button_function()
 
@@ -301,17 +300,48 @@ class APC40_MkII(APC, OptimizedControlSurface):
             behaviour=self._auto_arm.auto_arm_restore_behaviour(ReenterBehaviour,
             on_reenter=self.switch_note_mode_layout))
 
-        self._matrix_modes.selected_mode = 'note'
         self._matrix_modes.layer = Layer(session_button=self._pan_button, note_button=self._user_button)
 
         self._on_matrix_mode_changed.subject = self._matrix_modes
-        self._matrix_modes.selected_mode = 'note'
+        #self._matrix_modes.selected_mode = 'session'
+        #self._matrix_modes.selected_mode = 'note'
 
     def switch_note_mode_layout(self):
+        self._matrix_modes.selected_mode = 'note'
+
         if self._note_modes.selected_mode == 'instrument':
             getattr(self._instrument, 'cycle_mode', nop)()
         #elif self._note_modes.selected_mode == 'drums':
         #    getattr(self._drum_modes, 'cycle_mode', nop)()
+
+    def _session_layer(self):
+        def when_bank_on(button):
+            return self._bank_toggle.create_toggle_element(on_control=button)
+
+        def when_bank_off(button):
+            return self._bank_toggle.create_toggle_element(off_control=button)
+
+        return Layer(
+            track_bank_left_button=when_bank_off(self._left_button),
+            track_bank_right_button=when_bank_off(self._right_button),
+            scene_bank_up_button=when_bank_off(self._up_button),
+            scene_bank_down_button=when_bank_off(self._down_button),
+            page_left_button=when_bank_on(self._left_button),
+            page_right_button=when_bank_on(self._right_button),
+            page_up_button=when_bank_on(self._up_button),
+            page_down_button=when_bank_on(self._down_button),
+            stop_track_clip_buttons=self._stop_buttons,
+            stop_all_clips_button=self._stop_all_button,
+            scene_launch_buttons=self._scene_launch_buttons,
+            clip_launch_buttons=self._session_matrix)
+
+    def _session_zoom_layer(self):
+        return Layer(button_matrix=self._shifted_matrix,
+                     nav_left_button=self._with_shift(self._left_button),
+                     nav_right_button=self._with_shift(self._right_button),
+                     nav_up_button=self._with_shift(self._up_button),
+                     nav_down_button=self._with_shift(self._down_button),
+                     scene_bank_buttons=self._shifted_scene_buttons)
 
 
     @subject_slot('selected_mode')
@@ -354,3 +384,23 @@ class APC40_MkII(APC, OptimizedControlSurface):
 
     def _session_mode_layers(self):
         return [ self._session, self._session_zoom]
+
+    def _create_session_mode(self):
+        """ Switch between Session and StepSequencer modes """
+        self._session_mode = ModesComponent(name='Session_Mode', is_enabled=False)
+        self._session_mode.default_behaviour = ImmediateBehaviour()
+        self._session_mode.add_mode('session', self._session_mode_layers())
+        self._session_mode.add_mode('session_2', self._session_mode_layers())
+        self._session_mode.add_mode('sequencer', (self._sequencer, self._sequencer_layer()))
+
+        #   self._session_mode.add_mode('instrument', (self._instrument, self._instrument_layer()))
+
+        self._session_mode.layer = Layer(
+            session_button=self._pan_button,
+            session_2_button=self._sends_button,
+
+            #    instrument_button = self._user_button)#,
+
+            sequencer_button=self._user_button)
+
+        self._session_mode.selected_mode = "session"
