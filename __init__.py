@@ -3,9 +3,12 @@
 from __future__ import absolute_import, print_function, unicode_literals
 from _Framework.Capabilities import CONTROLLER_ID_KEY, PORTS_KEY, NOTES_CC, SCRIPT, SYNC, REMOTE, controller_id, inport, outport
 from .APC40_MkII import APC40_MkII
+#from .APSequencer import APSequencer
+
 
 def create_instance(c_instance):
     return APC40_MkII(c_instance)
+    #return APSequencer(c_instance)
 
 
 def get_capabilities():

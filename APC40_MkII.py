@@ -1,5 +1,8 @@
 from __future__ import absolute_import, print_function, unicode_literals
 from functools import partial
+from contextlib import contextmanager
+import sys
+
 from _Framework.ButtonMatrixElement import ButtonMatrixElement
 from _Framework.ComboElement import ComboElement, DoublePressElement, MultiElement
 from _Framework.ControlSurface import OptimizedControlSurface
@@ -15,7 +18,6 @@ from _Framework.Dependency import inject
 from _PushLegacy.PlayheadElement import PlayheadElement
 from _PushLegacy.GridResolution import GridResolution
 from _PushLegacy.MelodicComponent import MelodicComponent
-
 #from _PushLegacy.AutoArmComponent import AutoArmComponent
 
 from _APC.APC import APC
@@ -29,15 +31,30 @@ from .BankToggleComponent import BankToggleComponent
 from .MixerComponent import MixerComponent
 from .QuantizationComponent import QuantizationComponent
 from .TransportComponent import TransportComponent
-from .CustomSessionComponent import CustomSessionComponent as SessionComponent
 from .custom_auto_arm_component import AutoArmComponent
 
 from APCSequencer_LEWa.SelectComponent import SelectComponent
 from APCSequencer_LEWa.ButtonSliderElement import ButtonSliderElement
 from APCSequencer_LEWa.LooperComponent import LooperComponent
 
-from APCSequencer_LEWa.StepSeqComponent import StepSeqComponent
+#from APCSequencer_LEWa.StepSeqComponent import StepSeqComponent
+
 from APCSequencer_LEWa.ControlElementUtils import make_button as make_custom_button
+
+# Monkeypatch things
+import APCSequencer_LEWa.ControlElementUtils
+import APCSequencer_LEWa.SkinDefault
+import APCSequencer_LEWa.SessionComponent
+#from APCSequencer_LEWa.SessionComponent import SessionComponent
+
+from .CustomSessionComponent import CustomSessionComponent as SessionComponent
+
+from APCSequencer_LEWa.SkinDefault import make_rgb_skin, make_default_skin, make_stop_button_skin, make_crossfade_button_skin
+from APCSequencer_LEWa.StepSeqComponent import StepSeqComponent
+
+sys.modules['_APC.ControlElementUtils'] = APCSequencer_LEWa.ControlElementUtils
+sys.modules['_APC.SkinDefault'] = APCSequencer_LEWa.SkinDefault
+sys.modules['_APC.SessionComponent'] = SessionComponent
 
 import pydevd
 
@@ -54,25 +71,24 @@ class APC40_MkII(APC, OptimizedControlSurface):
         self._crossfade_button_skin = make_crossfade_button_skin()
         pydevd.settrace('localhost', port=4223, stdoutToServer=True, stderrToServer=True)
         with self.component_guard():
-            with self.make_injector().everywhere():
-                self._clip_creator = ClipCreator()
-                self._create_controls()
+            self._clip_creator = ClipCreator()
+            self._create_controls()
 
-                self._create_bank_toggle()
-                self._create_session()
-                self._create_mixer()
-                self._create_transport()
-                self._create_device()
-                self._create_view_control()
+            self._create_bank_toggle()
+            self._create_session()
+            self._create_mixer()
+            self._create_transport()
+            self._create_device()
+            self._create_view_control()
 
-                self._create_sequencer()
-                self._create_instrument()
-                self._create_session_mode()
-                self._init_auto_arm()
+            self._create_sequencer()
+            self._create_instrument()
+            self._create_session_mode()
+            self._init_auto_arm()
 
-                self._create_quantization_selection()
-                self._create_recording()
-                self._session.set_mixer(self._mixer)
+            self._create_quantization_selection()
+            self._create_recording()
+            self._session.set_mixer(self._mixer)
         self.set_highlighting_session_component(self._session)
         self.set_device_component(self._device)
 
@@ -271,9 +287,9 @@ class APC40_MkII(APC, OptimizedControlSurface):
         self._session_mode.add_mode('instrument', (self._instrument, self._instrument_layer()))
 
         self._session_mode.layer = Layer(
-            #session_button=self._pan_button,
-            #session_2_button=self._sends_button,
-            #instrument_button = self._user_button)#,
+            session_button=self._pan_button,
+            session_2_button=self._sends_button,
+            instrument_button=self._with_shift(self._user_button),
             sequencer_button=self._user_button)
 
         self._session_mode.selected_mode = "session"
@@ -292,6 +308,32 @@ class APC40_MkII(APC, OptimizedControlSurface):
         return [self._session, self._session_zoom]
 
     def _sequencer_layer(self):
+        return Layer(
+            playhead=self._playhead,
+            button_matrix=self._double_press_matrix.submatrix[4:8, 1:5],
+            #button_matrix=self._session_matrix.submatrix[:8, :4],
+            drum_matrix=self._session_matrix.submatrix[:4, 1:5],
+            loop_selector_matrix=self._double_press_matrix.submatrix[:4, :1],
+            short_loop_selector_matrix=self._double_press_event_matrix.submatrix[:4, :1],
+
+            #touch_strip=self._touch_strip_control,
+            #detail_touch_strip=self._with_shift(self._touch_strip_control),
+            #quantization_buttons=self._side_buttons,
+            #solo_button=self._global_solo_button,
+            select_button=self._user_button,
+            delete_button=self._stop_all_button,
+            shift_button=self._shift_button,
+            drum_bank_up_button=self._right_button,
+            drum_bank_down_button=self._left_button,
+            octave_up_button=self._up_button,
+            octave_down_button=self._down_button
+            #quantize_button=self._quantize_button,
+            #mute_button=self._global_mute_button,
+            #drum_bank_detail_up_button=self._with_shift(self._octave_up_button),
+            #drum_bank_detail_down_button=self._with_shift(self._octave_down_button)
+        )
+
+        '''
         return Layer(
             velocity_slider=self._velocity_slider,
             drum_matrix=self._session_matrix.submatrix[:4, 1:5],
@@ -316,17 +358,14 @@ class APC40_MkII(APC, OptimizedControlSurface):
             drum_bank_down_button=self._left_button
             #octave_up_button=self._right_button,
             #octave_down_button=self._left_button
-        )
+        )'''
 
     def _instrument_layer(self):
-        return Layer(
-            playhead=self._playhead,  # mute_button=self._global_mute_button,
-            quantization_buttons=self._stop_buttons,
-            #   octave_up_button=self._nudge_up_button, octave_down_button=self._down_button,
-            loop_selector_matrix=self._double_press_matrix.submatrix[:8, :2],  # [:, 0],
-            short_loop_selector_matrix=self._double_press_event_matrix.submatrix[:8, :1],  # [:, 0],
-            note_editor_matrices=ButtonMatrixElement([[self._session_matrix.submatrix[:, 7 - row] for row in xrange(
-                7)]]))  # self._session_matrix.submatrix[:, 7 - row] for row in xrange(7)
+        return Layer(playhead=self._playhead,  # mute_button=self._global_mute_button,
+                     quantization_buttons=self._stop_buttons,
+                     note_editor_matrices=ButtonMatrixElement(
+                         [[self._session_matrix.submatrix[:, 6 - row] for row in xrange(7)]]))
+                         #[[self._session_matrix.submatrix[:, 7 - row] for row in xrange(7)]]))
 
     def _init_auto_arm(self):
         self._auto_arm = AutoArmComponent(is_enabled=True)
@@ -339,20 +378,34 @@ class APC40_MkII(APC, OptimizedControlSurface):
         self._select_modes.name = 'Select_Modes'
         self._select_modes.set_mode_toggle(self._pan_button)
 
-        # EVENT HANDLING FUNCTIONS
+    def make_injector(self):
+        """ Adds some additional stuff to the injector, used in BaseMessenger """
+        return inject(
+            control_surface=const(self))
 
+    # EVENT HANDLING FUNCTIONS
     def reset_controlled_track(self):
         self.set_controlled_track(self.song().view.selected_track)
 
     def update(self):
         self.reset_controlled_track()
+        super(APC40_MkII, self).update()
 
     def _on_selected_track_changed(self):
         self.reset_controlled_track()
         if self._auto_arm.needs_restore_auto_arm:
             self.schedule_message(1, self._auto_arm.restore_auto_arm)
+        super(APC40_MkII, self)._on_selected_track_changed()
+
+    @contextmanager
+    def component_guard(self):
+        """ Customized to inject additional things """
+        with super(APC40_MkII, self).component_guard():
+            with self.make_injector().everywhere():
+                yield
 
     def make_injector(self):
         """ Adds some additional stuff to the injector, used in BaseMessenger """
         return inject(
-            control_surface=const(self))
+            control_surface=const(self),
+            log_message=const(self.log_message))
