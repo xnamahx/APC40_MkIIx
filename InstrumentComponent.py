@@ -8,14 +8,14 @@ from _Framework.DisplayDataSource import DisplayDataSource, adjust_string_crop
 from _Framework.Util import recursive_map, index_if, forward_property, first
 from _Framework.SubjectSlot import subject_slot, subject_slot_group
 from _Framework.SlideComponent import SlideComponent, Slideable
-from _PushLegacy.MessageBoxComponent import Messenger
-from _PushLegacy.ScrollableList import ListComponent
-from _PushLegacy.MelodicPattern import MelodicPattern, Modus, pitch_index_to_string
+
+from .ScrollableList import ListComponent
+from .MelodicPattern import MelodicPattern, Modus, pitch_index_to_string
 from MatrixMaps import NON_FEEDBACK_CHANNEL
-from _PushLegacy.SlideableTouchStripComponent import SlideableTouchStripComponent
-from _PushLegacy.TouchStripElement import TouchStripElement, TouchStripModes, MODWHEEL_BEHAVIOUR, DEFAULT_BEHAVIOUR
-from _PushLegacy import Sysex
-from _PushLegacy import consts
+from .SlideableTouchStripComponent import SlideableTouchStripComponent
+from .TouchStripElement import TouchStripElement, TouchStripModes, MODWHEEL_BEHAVIOUR, DEFAULT_BEHAVIOUR
+import Sysex
+import consts
 
 from _PushLegacy.InstrumentComponent import InstrumentComponent
 
@@ -309,7 +309,7 @@ class InstrumentScalesComponent(CompoundComponent):
 
 
 
-class instrumentComponent(InstrumentComponent, Slideable, APCMessenger):
+class InstrumentComponent(InstrumentComponent, Slideable, APCMessenger):
     """
     Class that sets up the button matrix as a piano, using different
     selectable layouts for the notes.

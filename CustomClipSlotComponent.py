@@ -20,7 +20,7 @@ class CustomClipSlotComponent(ClipSlotComponent):
             if not self._is_copying():
               self._do_start_copy_clip()
             else:
-              self._do_finish_copy_clip()
+              self._do_perform_copy_clip()
         elif self._delete_button and self._delete_button.is_pressed():
           if value:
             self._do_delete_clip()
@@ -43,12 +43,20 @@ class CustomClipSlotComponent(ClipSlotComponent):
   def _do_finish_copy_clip(self):
     if self._clip_slot:
       try:
-        self._clip_slot_copy_handler._finish_copying(self._clip_slot)
+        self._clip_slot_copy_handler._finish_copying()
       except Live.Base.LimitationError:
         pass
       except RuntimeError:
         pass
 
+  def _do_perform_copy_clip(self):
+    if self._clip_slot:
+      try:
+        self._clip_slot_copy_handler._perform_copy(self._clip_slot)
+      except Live.Base.LimitationError:
+        pass
+      except RuntimeError:
+        pass
 
   def set_delete_button(self, button):
     self._delete_button = button

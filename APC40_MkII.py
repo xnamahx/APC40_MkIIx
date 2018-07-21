@@ -1,3 +1,5 @@
+# Embedded file name: /Users/versonator/Jenkins/live/output/mac_64_static/Release/python-bundle/MIDI Remote Scripts/APC40_MkII/APC40_MkII.py
+# Compiled at: 2018-04-23 20:27:04
 from __future__ import absolute_import, print_function, unicode_literals
 from functools import partial
 from contextlib import contextmanager
@@ -5,7 +7,6 @@ import sys
 
 from _Framework.ButtonMatrixElement import ButtonMatrixElement
 from _Framework.ComboElement import ComboElement, DoublePressElement, MultiElement
-from _Framework.ControlSurface import OptimizedControlSurface
 from _Framework.Layer import Layer
 from _Framework.ModesComponent import ModesComponent, ImmediateBehaviour, DelayMode, AddLayerMode, ReenterBehaviour
 from _Framework.Resource import PrioritizedResource
@@ -14,47 +15,42 @@ from _Framework.SessionZoomingComponent import SessionZoomingComponent
 from _Framework.ClipCreator import ClipCreator
 from _Framework.Util import const, nop, recursive_map
 from _Framework.Dependency import inject
+from _Framework.ControlSurface import OptimizedControlSurface
 
 from _PushLegacy.PlayheadElement import PlayheadElement
 from _PushLegacy.GridResolution import GridResolution
-from _PushLegacy.MelodicComponent import MelodicComponent
-#from _PushLegacy.AutoArmComponent import AutoArmComponent
 
 from _APC.APC import APC
 from _APC.DeviceComponent import DeviceComponent
 from _APC.DeviceBankButtonElement import DeviceBankButtonElement
 from _APC.DetailViewCntrlComponent import DetailViewCntrlComponent
-from _APC.ControlElementUtils import make_button, make_encoder, make_slider, make_ring_encoder, make_pedal_button
-from _APC.SkinDefault import make_rgb_skin, make_default_skin, make_stop_button_skin, make_crossfade_button_skin
+#from _APC.ControlElementUtils import make_button, make_encoder, make_slider, make_ring_encoder, make_pedal_button
+#from _APC.SkinDefault import make_rgb_skin, make_default_skin, make_stop_button_skin, make_crossfade_button_skin
+
 from . import Colors
+#from .CustomControlSurface import CustomOptimizedControlSurface as OptimizedControlSurface
 from .BankToggleComponent import BankToggleComponent
 from .MixerComponent import MixerComponent
 from .QuantizationComponent import QuantizationComponent
 from .TransportComponent import TransportComponent
+from .CustomSessionComponent import CustomSessionComponent as SessionComponent
+from .ButtonSliderElement import ButtonSliderElement
+from .MelodicComponent import MelodicComponent
+from .ControlElementUtils import make_button, make_encoder, make_slider, make_ring_encoder, make_pedal_button
+from .LooperComponent import LooperComponent
 from .custom_auto_arm_component import AutoArmComponent
 
-from APCSequencer_LEWa.SelectComponent import SelectComponent
-from APCSequencer_LEWa.ButtonSliderElement import ButtonSliderElement
-from APCSequencer_LEWa.LooperComponent import LooperComponent
-
+from .SelectComponent import SelectComponent
+from .CustomStepSeqComponent import StepSeqComponent
 #from APCSequencer_LEWa.StepSeqComponent import StepSeqComponent
 
-from APCSequencer_LEWa.ControlElementUtils import make_button as make_custom_button
-
 # Monkeypatch things
-import APCSequencer_LEWa.ControlElementUtils
-import APCSequencer_LEWa.SkinDefault
-import APCSequencer_LEWa.SessionComponent
-#from APCSequencer_LEWa.SessionComponent import SessionComponent
 
-from .CustomSessionComponent import CustomSessionComponent as SessionComponent
+from .CustomSkinDefault import make_rgb_skin, make_default_skin, make_stop_button_skin, make_crossfade_button_skin
 
-from APCSequencer_LEWa.SkinDefault import make_rgb_skin, make_default_skin, make_stop_button_skin, make_crossfade_button_skin
-from APCSequencer_LEWa.StepSeqComponent import StepSeqComponent
-
-sys.modules['_APC.ControlElementUtils'] = APCSequencer_LEWa.ControlElementUtils
-sys.modules['_APC.SkinDefault'] = APCSequencer_LEWa.SkinDefault
-sys.modules['_APC.SessionComponent'] = SessionComponent
+#sys.modules['_APC.ControlElementUtils'] = APCSequencer_LEWa.ControlElementUtils
+#sys.modules['_APC.SkinDefault'] = APCSequencer_LEWa.SkinDefault
+#sys.modules['_APC.SessionComponent'] = SessionComponent
 
 import pydevd
 
@@ -71,7 +67,6 @@ class APC40_MkII(APC, OptimizedControlSurface):
         self._crossfade_button_skin = make_crossfade_button_skin()
         pydevd.settrace('localhost', port=4223, stdoutToServer=True, stderrToServer=True)
         with self.component_guard():
-            self._clip_creator = ClipCreator()
             self._create_controls()
 
             self._create_bank_toggle()
@@ -95,43 +90,38 @@ class APC40_MkII(APC, OptimizedControlSurface):
     def _with_shift(self, button):
         return ComboElement(button, modifiers=[self._shift_button])
 
+    def make_color_button(self, *a, **k):
+        button = make_button(skin=self._color_skin, *a, **k)
+        button.is_rgb = True
+        button.num_delayed_messages = 2
+        return button
+
+    def make_matrix_button(self, track, scene):
+        return self.make_color_button(0, 32 + track - NUM_TRACKS * scene, name='%d_Clip_%d_Button' % (track, scene))
+
+    def make_stop_button(self, track):
+        return make_button(track, 52, name='%d_Stop_Button' % track, skin=self._stop_button_skin)
+
     def _create_controls(self):
         make_on_off_button = partial(make_button, skin=self._default_skin)
 
-        # Make these prioritized resources, which share between Layers() equally
-        # Rather than building a stack
-
-        def make_color_button(*a, **k):
-            button = make_button(skin=self._color_skin, *a, **k)
-            button.is_rgb = True
-            button.num_delayed_messages = 2
-            return button
-
-        def make_matrix_button(track, scene):
-            return make_color_button(0, 32 + track - NUM_TRACKS * scene, name='%d_Clip_%d_Button' % (track, scene))
-
-        def make_stop_button(track):
-            return make_custom_button(track, 52, name='%d_Stop_Button' % track, skin=self._stop_button_skin)
-
-        self._metronome_button = make_button(0, 90, name='Delete_Button')
         self._shift_button = make_button(0, 98, name='Shift_Button', resource_type=PrioritizedResource)
         self._bank_button = make_on_off_button(0, 103, name='Bank_Button')
         self._left_button = make_button(0, 97, name='Bank_Select_Left_Button')
         self._right_button = make_button(0, 96, name='Bank_Select_Right_Button')
         self._up_button = make_button(0, 94, name='Bank_Select_Up_Button')
         self._down_button = make_button(0, 95, name='Bank_Select_Down_Button')
-        self._stop_buttons = ButtonMatrixElement(rows=[[ make_stop_button(track) for track in xrange(NUM_TRACKS) ]])
+        self._stop_buttons = ButtonMatrixElement(rows=[[ self.make_stop_button(track) for track in xrange(NUM_TRACKS) ]])
         self._stop_all_button = make_button(0, 81, name='Stop_All_Clips_Button')
-        self._scene_launch_buttons_raw = [ make_color_button(0, scene + 82, name='Scene_%d_Launch_Button' % scene) for scene in xrange(NUM_SCENES)
+        self._scene_launch_buttons_raw = [ self.make_color_button(0, scene + 82, name='Scene_%d_Launch_Button' % scene) for scene in xrange(NUM_SCENES)
                                          ]
-        self._scene_launch_buttons = ButtonMatrixElement(rows=[
-         self._scene_launch_buttons_raw])
-        self._matrix_rows_raw = [ [ make_matrix_button(track, scene) for track in xrange(NUM_TRACKS) ] for scene in xrange(NUM_SCENES)
-                                ]
+        self._scene_launch_buttons = ButtonMatrixElement(rows=[self._scene_launch_buttons_raw])
+        self._matrix_rows_raw = [[self.make_matrix_button(track, scene) for track in xrange(NUM_TRACKS)] for scene in xrange(NUM_SCENES)]
         self._session_matrix = ButtonMatrixElement(rows=self._matrix_rows_raw)
         self._pan_button = make_on_off_button(0, 87, name='Pan_Button', resource_type=PrioritizedResource)
         self._sends_button = make_on_off_button(0, 88, name='Sends_Button', resource_type=PrioritizedResource)
-        self._user_button = make_on_off_button(0, 89, name='User_Button')
+        self._user_button = make_on_off_button(0, 89, name='Seq_Button')
+        self._metronome_button = make_button(0, 90, name='Instrument_Button')
 
         self._mixer_encoders = ButtonMatrixElement(rows=[
          [ make_ring_encoder(48 + track, 56 + track, name='Track_Control_%d' % track) for track in xrange(NUM_TRACKS)
@@ -142,17 +132,16 @@ class APC40_MkII(APC, OptimizedControlSurface):
         self._master_volume_control = make_slider(0, 14, name='Master_Volume_Control')
         self._prehear_control = make_encoder(0, 47, name='Prehear_Volume_Control')
         self._crossfader_control = make_slider(0, 15, name='Crossfader')
-        self._raw_select_buttons = [ make_on_off_button(channel, 51, name='%d_Select_Button' % channel) for channel in xrange(NUM_TRACKS)
-                                   ]
+        self._raw_select_buttons = [make_on_off_button(channel, 51, name='%d_Select_Button' % channel) for channel in xrange(NUM_TRACKS)]
+        self._raw_mute_buttons = [make_on_off_button(channel, 50, name='%d_Mute_Button' % channel) for channel in xrange(NUM_TRACKS)]
+
         self._arm_buttons = ButtonMatrixElement(rows=[
          [ make_on_off_button(channel, 48, name='%d_Arm_Button' % channel) for channel in xrange(NUM_TRACKS)
          ]])
         self._solo_buttons = ButtonMatrixElement(rows=[
          [ make_on_off_button(channel, 49, name='%d_Solo_Button' % channel) for channel in xrange(NUM_TRACKS)
          ]])
-        self._mute_buttons = ButtonMatrixElement(rows=[
-         [ make_on_off_button(channel, 50, name='%d_Mute_Button' % channel) for channel in xrange(NUM_TRACKS)
-         ]])
+        self._mute_buttons = ButtonMatrixElement(rows=[self._raw_mute_buttons])
         self._crossfade_buttons = ButtonMatrixElement(rows=[
          [ make_button(channel, 66, name='%d_Crossfade_Button' % channel, skin=self._crossfade_button_skin) for channel in xrange(NUM_TRACKS)
          ]])
@@ -205,30 +194,34 @@ class APC40_MkII(APC, OptimizedControlSurface):
 
         self._grid_resolution = GridResolution()
         self._velocity_slider = ButtonSliderElement(tuple(self._scene_launch_buttons_raw[::-1]))
+
+        #double_press_rows = recursive_map(DoublePressElement, [self._raw_mute_buttons])
+
         double_press_rows = recursive_map(DoublePressElement, self._matrix_rows_raw)
         self._double_press_matrix = ButtonMatrixElement(name='Double_Press_Matrix', rows=double_press_rows)
+
+        #double_press_rows = recursive_map(DoublePressElement, [self._raw_select_buttons])
+        #self._double_press_matrix = ButtonMatrixElement(name='Double_Press_Matrix', rows=double_press_rows)
+
         self._double_press_event_matrix = ButtonMatrixElement(name='Double_Press_Event_Matrix',
                                                               rows=recursive_map(lambda x: x.double_press,
                                                                                  double_press_rows))
+
         self._playhead = PlayheadElement(self._c_instance.playhead)
 
     def _create_bank_toggle(self):
         self._bank_toggle = BankToggleComponent(is_enabled=False, layer=Layer(bank_toggle_button=self._bank_button))
 
+    def when_bank_on(self, button):
+        return self._bank_toggle.create_toggle_element(on_control=button)
+
+    def when_bank_off(self, button):
+        return self._bank_toggle.create_toggle_element(off_control=button)
+
     def _create_session(self):
-
-        def when_bank_on(button):
-            return self._bank_toggle.create_toggle_element(on_control=button)
-
-        def when_bank_off(button):
-            return self._bank_toggle.create_toggle_element(off_control=button)
-
-        self._session = SessionComponent(NUM_TRACKS, NUM_SCENES, auto_name=True, is_enabled=False, enable_skinning=True, layer=Layer( track_bank_left_button=when_bank_off(self._left_button), track_bank_right_button=when_bank_off(self._right_button), scene_bank_up_button=when_bank_off(self._up_button), scene_bank_down_button=when_bank_off(self._down_button), page_left_button=when_bank_on(self._left_button), page_right_button=when_bank_on(self._right_button), page_up_button=when_bank_on(self._up_button), page_down_button=when_bank_on(self._down_button), stop_track_clip_buttons=self._stop_buttons, stop_all_clips_button=self._stop_all_button, scene_launch_buttons=self._scene_launch_buttons, clip_launch_buttons=self._session_matrix))
-        self._session.set_delete_button(self._metronome_button)
-        self._session.set_copy_button(self._nudge_down_button)
-        self._session.set_paste_button(self._nudge_up_button)
-
-        self._session.add_clip_button_function()
+        self._session = SessionComponent(NUM_TRACKS, NUM_SCENES, auto_name=True, is_enabled=False, enable_skinning=True, layer=Layer( track_bank_left_button=self.when_bank_off(self._left_button), track_bank_right_button=self.when_bank_off(self._right_button), scene_bank_up_button=self.when_bank_off(self._up_button), scene_bank_down_button=self.when_bank_off(self._down_button), page_left_button=self.when_bank_on(self._left_button), page_right_button=self.when_bank_on(self._right_button), page_up_button=self.when_bank_on(self._up_button), page_down_button=self.when_bank_on(self._down_button), stop_track_clip_buttons=self._stop_buttons, stop_all_clips_button=self._stop_all_button, scene_launch_buttons=self._scene_launch_buttons, clip_launch_buttons=self._session_matrix))
+        self._session.set_delete_button(self._nudge_down_button)
+        self._session.set_copy_button(self._nudge_up_button)
 
         clip_color_table = Colors.LIVE_COLORS_TO_MIDI_VALUES.copy()
         clip_color_table[16777215] = 119
@@ -247,7 +240,7 @@ class APC40_MkII(APC, OptimizedControlSurface):
          DelayMode(AddLayerMode(self._mixer, Layer(send_select_buttons=self._send_select_buttons)))])
         self._encoder_mode.add_mode('user', [
          AddLayerMode(self._mixer, Layer(user_controls=self._mixer_encoders))])
-        self._encoder_mode.layer = Layer(pan_button=self._pan_button, sends_button=self._sends_button)#, user_button=self._user_button)
+        self._encoder_mode.layer = Layer(pan_button=self._pan_button, sends_button=self._sends_button, user_button=self._user_button)
         self._encoder_mode.selected_mode = 'pan'
 
     def _create_transport(self):
@@ -275,113 +268,83 @@ class APC40_MkII(APC, OptimizedControlSurface):
         return 41
 
 
-
-
     def _create_session_mode(self):
         """ Switch between Session and StepSequencer modes """
         self._session_mode = ModesComponent(name='Session_Mode', is_enabled=False)
         self._session_mode.default_behaviour = ImmediateBehaviour()
         self._session_mode.add_mode('session', self._session_mode_layers())
         self._session_mode.add_mode('session_2', self._session_mode_layers())
+
         self._session_mode.add_mode('sequencer', (self._sequencer, self._sequencer_layer()))
-        self._session_mode.add_mode('instrument', (self._instrument, self._instrument_layer()))
+        self._session_mode.add_mode('instrument',
+                                    (self._instrument, self._instrument_layer())
+                                    )
 
         self._session_mode.layer = Layer(
             session_button=self._pan_button,
             session_2_button=self._sends_button,
-            instrument_button=self._with_shift(self._user_button),
-            sequencer_button=self._user_button)
+            sequencer_button=self._user_button,
+            instrument_button=self._metronome_button
+        )
 
         self._session_mode.selected_mode = "session"
 
         # added for looping capability
-        self._looper = LooperComponent(self)
-        self._looper.name = 'looper_Component'
+        #self._looper = LooperComponent(self)
+        #self._looper.name = 'looper_Component'
 
-    def _create_sequencer(self):
-        self._sequencer = StepSeqComponent(grid_resolution=self._grid_resolution)
+    def _session_mode_layers(self):
+        return [self._session, self._session_zoom]
+        #, self._mixer
 
     def _create_instrument(self):
         self._instrument = MelodicComponent(grid_resolution=self._grid_resolution)
 
-    def _session_mode_layers(self):
-        return [self._session, self._session_zoom]
+    def _instrument_layer(self):
+        return Layer(playhead=self._playhead,  # mute_button=self._global_mute_button,
+                     velocity_slider=self._velocity_slider,
+                     quantization_buttons=self._stop_buttons,
+                     loop_selector_matrix=self._double_press_matrix.submatrix[:8, :1],
+                     short_loop_selector_matrix=self._double_press_event_matrix.submatrix[:8, :1],
+                     scale_up_button=self._right_button,
+                     scale_down_button=self._left_button,
+                     octave_up_button=self._up_button,
+                     octave_down_button=self._down_button,
+
+                     note_editor_matrices=ButtonMatrixElement(
+                         [[self._session_matrix.submatrix[:, 7 - row] for row in xrange(7)]])
+                     )
+
+    def _create_sequencer(self):
+        self._sequencer = StepSeqComponent(grid_resolution=self._grid_resolution)
 
     def _sequencer_layer(self):
         return Layer(
             playhead=self._playhead,
-            button_matrix=self._double_press_matrix.submatrix[4:8, 1:5],
-            #button_matrix=self._session_matrix.submatrix[:8, :4],
-            drum_matrix=self._session_matrix.submatrix[:4, 1:5],
-            loop_selector_matrix=self._double_press_matrix.submatrix[:4, :1],
-            short_loop_selector_matrix=self._double_press_event_matrix.submatrix[:4, :1],
-
-            #touch_strip=self._touch_strip_control,
-            #detail_touch_strip=self._with_shift(self._touch_strip_control),
-            #quantization_buttons=self._side_buttons,
-            #solo_button=self._global_solo_button,
-            select_button=self._user_button,
-            delete_button=self._stop_all_button,
-            shift_button=self._shift_button,
-            drum_bank_up_button=self._right_button,
-            drum_bank_down_button=self._left_button,
-            octave_up_button=self._up_button,
-            octave_down_button=self._down_button
-            #quantize_button=self._quantize_button,
-            #mute_button=self._global_mute_button,
-            #drum_bank_detail_up_button=self._with_shift(self._octave_up_button),
-            #drum_bank_detail_down_button=self._with_shift(self._octave_down_button)
-        )
-
-        '''
-        return Layer(
             velocity_slider=self._velocity_slider,
-            drum_matrix=self._session_matrix.submatrix[:4, 1:5],
-            # [4, 1:5],  mess with this for possible future 32 pad drum rack :
-
-            #  lewie add 15/10/17  07:06
-            # note_matrix = self._session_matrix.submatrix[:8, 1:5],
-            button_matrix=self._double_press_matrix.submatrix[4:8, 1:5],  # [4:8, 1:5],
-
-            # next_page_button = self._bank_button,
-
-            select_button=self._user_button,
-            delete_button=self._stop_all_button,
-            playhead=self._playhead,
+            loop_selector_matrix=self._double_press_matrix.submatrix[4:8, 4],
+            short_loop_selector_matrix=self._double_press_event_matrix.submatrix[4:8, 4],
             quantization_buttons=self._stop_buttons,
+            button_matrix=self._session_matrix.submatrix[4:8, 0:4],
+            drum_matrix=self._session_matrix.submatrix[:4, :5],
+            #select_button=self._user_button,
+            delete_button=self._stop_all_button,
             shift_button=self._shift_button,
-            loop_selector_matrix=self._double_press_matrix.submatrix[:4, :1],
-            # changed from [:8, :1] so as to enable bottem row of rack   . second value clip length rows
-            short_loop_selector_matrix=self._double_press_event_matrix.submatrix[:4, :1],
-            # changed from [:8, :1] no change noticed as of yet
-            drum_bank_up_button=self._right_button,
-            drum_bank_down_button=self._left_button
-            #octave_up_button=self._right_button,
-            #octave_down_button=self._left_button
-        )'''
-
-    def _instrument_layer(self):
-        return Layer(playhead=self._playhead,  # mute_button=self._global_mute_button,
-                     quantization_buttons=self._stop_buttons,
-                     note_editor_matrices=ButtonMatrixElement(
-                         [[self._session_matrix.submatrix[:, 6 - row] for row in xrange(7)]]))
-                         #[[self._session_matrix.submatrix[:, 7 - row] for row in xrange(7)]]))
+            drum_bank_up_button=self._up_button,
+            drum_bank_down_button=self._down_button,
+            drum_bank_detail_down_button=self._left_button,
+            drum_bank_detail_up_button=self._right_button,
+        )
 
     def _init_auto_arm(self):
         self._auto_arm = AutoArmComponent(is_enabled=True)
 
         # added so as to have looping with pan_button held
-        self._select_modes = SelectComponent(self, tuple(self._raw_select_buttons), self._metronome_button,
-                                             self._nudge_down_button, self._nudge_up_button, self._tap_tempo_button,
+        '''self._select_modes = SelectComponent(self, tuple(self._raw_select_buttons), self._tap_tempo_button,
                                              self._transport, self._looper, self._session, self._session_matrix,
                                              self._session_record_button)
         self._select_modes.name = 'Select_Modes'
-        self._select_modes.set_mode_toggle(self._pan_button)
-
-    def make_injector(self):
-        """ Adds some additional stuff to the injector, used in BaseMessenger """
-        return inject(
-            control_surface=const(self))
+        self._select_modes.set_mode_toggle(self._pan_button)'''
 
     # EVENT HANDLING FUNCTIONS
     def reset_controlled_track(self):

@@ -7,7 +7,7 @@ from _Framework.SubjectSlot import subject_slot, subject_slot_group
 from _Framework.CompoundComponent import CompoundComponent
 from _Framework.ModesComponent import ModeButtonBehaviour
 from _Framework.Util import forward_property, mixin
-from _PushLegacy.MessageBoxComponent import NotificationComponent
+from .MessageBoxComponent import NotificationComponent
 from ableton.v2.control_surface import Component
 from pushbase.message_box_component import Messenger
 

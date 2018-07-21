@@ -620,26 +620,40 @@ class CustomSessionComponent(CompoundComponent):
     def make_button_slot(self, name):
         return self.register_slot(None, getattr(self, '_%s_value' % name), 'value')
 
-    def _delete_value(self, value):
-        assert self._delete_button != None
-        self._delete_pressed = value != 0
-        return
-
     def set_delete_button(self, button):
         self._delete_button = button
         self._delete_button_slot = self.make_button_slot('delete')
         self._delete_button_slot.subject = button
+
+        for scene_index in xrange(self._num_scenes):
+            scene = self.scene(scene_index)
+            for track_index in xrange(self._num_tracks):
+                clip_slot = scene.clip_slot(track_index)
+                clip_slot.set_delete_button(self._delete_button)
+
+    def _delete_value(self, value):
+        assert self._delete_button != None
+        self._delete_pressed = value != 0
+        return
 
     def set_copy_button(self, button):
         self._copy_button = button
         self._copy_button_slot = self.make_button_slot('copy')
         self._copy_button_slot.subject = button
 
+        self.clip_slot_copy_handler = CustomClipSlotCopyHandler()
+        for scene_index in xrange(self._num_scenes):
+            scene = self.scene(scene_index)
+            for track_index in xrange(self._num_tracks):
+                clip_slot = scene.clip_slot(track_index)
+                clip_slot.set_copy_button(self._copy_button, self.clip_slot_copy_handler)
+
     def _copy_value(self, value):
         assert self._copy_button != None
-        self._copy_button = value != 0
-        if not self._copy_button:
-            self.clip_slot_copy_handler.stop_copying()
+        if self.is_enabled():
+            if not value:
+                self.clip_slot_copy_handler._finish_copying()
+
         return
 
     def set_paste_button(self, button):
@@ -651,17 +665,6 @@ class CustomSessionComponent(CompoundComponent):
         assert self._paste_button != None
         self._paste_button = value != 0
         return
-
-
-    def add_clip_button_function(self):
-      self.clip_slot_copy_handler = CustomClipSlotCopyHandler()
-      for scene_index in xrange(self._num_scenes):
-        scene = self.scene(scene_index)
-        for track_index in xrange(self._num_tracks):
-          clip_slot = scene.clip_slot(track_index)
-          clip_slot.set_delete_button(self._delete_button)
-          clip_slot.set_copy_button(self._copy_button, self.clip_slot_copy_handler)
-          clip_slot.set_paste_button(self._paste_button)
 
     def link_with_track_offset(self, track_offset):
         assert track_offset >= 0
