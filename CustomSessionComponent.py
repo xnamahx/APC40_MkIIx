@@ -29,7 +29,7 @@ class CustomSessionComponent(CompoundComponent):
     _delete_button = None
     _delete_button_slot = None
     _delete_pressed = False
-
+    _paste_button = None
 
     def __init__(self, num_tracks=0, num_scenes=0, auto_name=False, enable_skinning=False, *a, **k):
         super(CustomSessionComponent, self).__init__(*a, **k)
@@ -659,7 +659,6 @@ class CustomSessionComponent(CompoundComponent):
           clip_slot = scene.clip_slot(track_index)
           clip_slot.set_delete_button(self._delete_button)
           clip_slot.set_copy_button(self._copy_button, clip_slot_copy_handler)
-          clip_slot.set_paste_button(self._paste_button)
 
     def link_with_track_offset(self, track_offset):
         assert track_offset >= 0

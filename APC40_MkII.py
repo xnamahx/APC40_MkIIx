@@ -28,9 +28,14 @@ from .CustomSessionComponent import CustomSessionComponent as SessionComponent
 NUM_TRACKS = 8
 NUM_SCENES = 5
 
+import pydevd
+
 class APC40_MkII(APC, OptimizedControlSurface):
 
     def __init__(self, *a, **k):
+
+        pydevd.settrace('localhost', port=4223, stdoutToServer=True, stderrToServer=True)
+
         super(APC40_MkII, self).__init__(*a, **k)
         self._color_skin = make_rgb_skin()
         self._default_skin = make_default_skin()
@@ -68,7 +73,7 @@ class APC40_MkII(APC, OptimizedControlSurface):
         def make_stop_button(track):
             return make_button(track, 52, name='%d_Stop_Button' % track, skin=self._stop_button_skin)
 
-        self._metronome_button = make_button(0, 90, name='Delete_Button')
+        self._metronome_button = make_button(0, 90, name='Metronome_Button')
         self._shift_button = make_button(0, 98, name='Shift_Button', resource_type=PrioritizedResource)
         self._bank_button = make_on_off_button(0, 103, name='Bank_Button')
         self._left_button = make_button(0, 97, name='Bank_Select_Left_Button')
@@ -169,10 +174,8 @@ class APC40_MkII(APC, OptimizedControlSurface):
             return self._bank_toggle.create_toggle_element(off_control=button)
 
         self._session = SessionComponent(NUM_TRACKS, NUM_SCENES, auto_name=True, is_enabled=False, enable_skinning=True, layer=Layer( track_bank_left_button=when_bank_off(self._left_button), track_bank_right_button=when_bank_off(self._right_button), scene_bank_up_button=when_bank_off(self._up_button), scene_bank_down_button=when_bank_off(self._down_button), page_left_button=when_bank_on(self._left_button), page_right_button=when_bank_on(self._right_button), page_up_button=when_bank_on(self._up_button), page_down_button=when_bank_on(self._down_button), stop_track_clip_buttons=self._stop_buttons, stop_all_clips_button=self._stop_all_button, scene_launch_buttons=self._scene_launch_buttons, clip_launch_buttons=self._session_matrix))
-        self._session.set_delete_button(self._metronome_button)
-        self._session.set_copy_button(self._nudge_down_button)
-        self._session.set_paste_button(self._nudge_up_button)
-        #self._session.set_delete_button(self._nudge_down_button)
+        self._session.set_delete_button(self._nudge_down_button)
+        self._session.set_copy_button(self._nudge_up_button)
 
         self._session.add_clip_button_function()
 
