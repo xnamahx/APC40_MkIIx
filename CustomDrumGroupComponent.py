@@ -2,7 +2,7 @@
 from _Framework.Control import control_matrix
 
 from _Framework.Control import ButtonControl
-from DrumGroupComponent import DrumGroupComponent as DrumGroupComponentBase
+from .DrumGroupComponent import DrumGroupComponent as DrumGroupComponentBase
 
 from _Framework.SubjectSlot import subject_slot
 from consts import MessageBoxText

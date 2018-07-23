@@ -317,17 +317,6 @@ class InstrumentComponent(InstrumentComponent, Slideable, APCMessenger):
     touch_strip_toggle = ToggleButtonControl()
     midi_channels = range(5, 13)
 
-    
-  
-    
-    
-    
-    
-    
-    
-    
-    
-    
     def __init__(self, *a, **k):
         super(InstrumentComponent, self).__init__(*a, **k)
         self._scales = self.register_component(InstrumentScalesComponent())

@@ -3,12 +3,11 @@
 from __future__ import absolute_import, print_function, unicode_literals
 from functools import partial
 from contextlib import contextmanager
-import sys
 
 from _Framework.ButtonMatrixElement import ButtonMatrixElement
-from _Framework.ComboElement import ComboElement, DoublePressElement, MultiElement
+from _Framework.ComboElement import ComboElement, DoublePressElement, MultiElement, DoublePressContext
 from _Framework.Layer import Layer
-from _Framework.ModesComponent import ModesComponent, ImmediateBehaviour, DelayMode, AddLayerMode, ReenterBehaviour
+from _Framework.ModesComponent import ModesComponent, ImmediateBehaviour, DelayMode, AddLayerMode, ReenterBehaviour, EnablingModesComponent
 from _Framework.Resource import PrioritizedResource
 from _Framework.SessionRecordingComponent import SessionRecordingComponent
 from _Framework.SessionZoomingComponent import SessionZoomingComponent
@@ -16,19 +15,18 @@ from _Framework.ClipCreator import ClipCreator
 from _Framework.Util import const, nop, recursive_map
 from _Framework.Dependency import inject
 from _Framework.ControlSurface import OptimizedControlSurface
+from _Framework.BackgroundComponent import BackgroundComponent, ModifierBackgroundComponent
+from _Framework.SubjectSlot import subject_slot
 
-from _PushLegacy.PlayheadElement import PlayheadElement
-from _PushLegacy.GridResolution import GridResolution
+from .PlayheadElement import PlayheadElement
+from .GridResolution import GridResolution
 
 from _APC.APC import APC
 from _APC.DeviceComponent import DeviceComponent
 from _APC.DeviceBankButtonElement import DeviceBankButtonElement
 from _APC.DetailViewCntrlComponent import DetailViewCntrlComponent
-#from _APC.ControlElementUtils import make_button, make_encoder, make_slider, make_ring_encoder, make_pedal_button
-#from _APC.SkinDefault import make_rgb_skin, make_default_skin, make_stop_button_skin, make_crossfade_button_skin
 
-from . import Colors
-#from .CustomControlSurface import CustomOptimizedControlSurface as OptimizedControlSurface
+from . import Colors, consts
 from .BankToggleComponent import BankToggleComponent
 from .MixerComponent import MixerComponent
 from .QuantizationComponent import QuantizationComponent
@@ -39,18 +37,15 @@ from .MelodicComponent import MelodicComponent
 from .ControlElementUtils import make_button, make_encoder, make_slider, make_ring_encoder, make_pedal_button
 from .LooperComponent import LooperComponent
 from .custom_auto_arm_component import AutoArmComponent
+from .NoteRepeatComponent import NoteRepeatComponent
 
 from .SelectComponent import SelectComponent
 from .CustomStepSeqComponent import StepSeqComponent
-#from APCSequencer_LEWa.StepSeqComponent import StepSeqComponent
+from .CustomDrumGroupComponent import DrumGroupComponent
+from .StepSeqComponent import DrumGroupFinderComponent
 
-# Monkeypatch things
-
-from .CustomSkinDefault import make_rgb_skin, make_default_skin, make_stop_button_skin, make_crossfade_button_skin
-
-#sys.modules['_APC.ControlElementUtils'] = APCSequencer_LEWa.ControlElementUtils
-#sys.modules['_APC.SkinDefault'] = APCSequencer_LEWa.SkinDefault
-#sys.modules['_APC.SessionComponent'] = SessionComponent
+from .CustomSkinDefault import make_rgb_skin, make_custom_skin, make_default_skin, make_stop_button_skin, make_crossfade_button_skin
+from .MatrixMaps import PAD_TRANSLATIONS, FEEDBACK_CHANNELS
 
 import pydevd
 
@@ -62,11 +57,15 @@ class APC40_MkII(APC, OptimizedControlSurface):
     def __init__(self, *a, **k):
         super(APC40_MkII, self).__init__(*a, **k)
         self._color_skin = make_rgb_skin()
-        self._default_skin = make_default_skin()
         self._stop_button_skin = make_stop_button_skin()
         self._crossfade_button_skin = make_crossfade_button_skin()
+        self._double_press_context = DoublePressContext()
+        self._default_skin = make_custom_skin()
+
         pydevd.settrace('localhost', port=4223, stdoutToServer=True, stderrToServer=True)
         with self.component_guard():
+
+
             self._create_controls()
 
             self._create_bank_toggle()
@@ -76,16 +75,26 @@ class APC40_MkII(APC, OptimizedControlSurface):
             self._create_device()
             self._create_view_control()
 
-            self._create_sequencer()
-            self._create_instrument()
-            self._create_session_mode()
-            self._init_auto_arm()
+
 
             self._create_quantization_selection()
             self._create_recording()
             self._session.set_mixer(self._mixer)
+
+            self._clip_creator = ClipCreator()
+            self._init_background()
+            self._init_step_sequencer()
+            self._init_drum_component()
+            self._init_instrument()
+            self._init_note_repeat()
+            self._init_matrix_modes()
+            self._create_device()
+            self._on_selected_track_changed()
+
         self.set_highlighting_session_component(self._session)
         self.set_device_component(self._device)
+        self.set_pad_translations(PAD_TRANSLATIONS)
+        self.set_feedback_channels(FEEDBACK_CHANNELS)
 
     def _with_shift(self, button):
         return ComboElement(button, modifiers=[self._shift_button])
@@ -200,14 +209,31 @@ class APC40_MkII(APC, OptimizedControlSurface):
         double_press_rows = recursive_map(DoublePressElement, self._matrix_rows_raw)
         self._double_press_matrix = ButtonMatrixElement(name='Double_Press_Matrix', rows=double_press_rows)
 
-        #double_press_rows = recursive_map(DoublePressElement, [self._raw_select_buttons])
-        #self._double_press_matrix = ButtonMatrixElement(name='Double_Press_Matrix', rows=double_press_rows)
-
         self._double_press_event_matrix = ButtonMatrixElement(name='Double_Press_Event_Matrix',
                                                               rows=recursive_map(lambda x: x.double_press,
                                                                                  double_press_rows))
 
         self._playhead = PlayheadElement(self._c_instance.playhead)
+
+
+        ##PHAZE
+
+        # Make these prioritized resources, which share between Layers() equally
+        # Rather than building a stack
+
+        """not sure but we greened out below on 05/11/17.. maybe work on order of definitions so as to tidy up some"""
+
+        self._pan_button._resource_type = PrioritizedResource
+        self._user_button._resource_type = PrioritizedResource
+
+        #    self._view_control = ViewControlComponent(name='View_Control')
+
+        #    self._view_control.set_enabled(False)
+
+
+
+
+
 
     def _create_bank_toggle(self):
         self._bank_toggle = BankToggleComponent(is_enabled=False, layer=Layer(bank_toggle_button=self._bank_button))
@@ -268,97 +294,279 @@ class APC40_MkII(APC, OptimizedControlSurface):
         return 41
 
 
-    def _create_session_mode(self):
-        """ Switch between Session and StepSequencer modes """
-        self._session_mode = ModesComponent(name='Session_Mode', is_enabled=False)
-        self._session_mode.default_behaviour = ImmediateBehaviour()
-        self._session_mode.add_mode('session', self._session_mode_layers())
-        self._session_mode.add_mode('session_2', self._session_mode_layers())
 
-        self._session_mode.add_mode('sequencer', (self._sequencer, self._sequencer_layer()))
-        self._session_mode.add_mode('instrument',
-                                    (self._instrument, self._instrument_layer())
-                                    )
 
-        self._session_mode.layer = Layer(
-            session_button=self._pan_button,
-            session_2_button=self._sends_button,
-            sequencer_button=self._user_button,
-            instrument_button=self._metronome_button
-        )
 
-        self._session_mode.selected_mode = "session"
 
-        # added for looping capability
-        #self._looper = LooperComponent(self)
-        #self._looper.name = 'looper_Component'
+
+
+
+
+
+    def _init_background(self):
+        self._background = BackgroundComponent(is_root=True)
+        self._background.layer = Layer(velocity_slider=self._velocity_slider,
+                                       stop_buttons=self._stop_buttons)  # , display_line2=self._display_line2, display_line3=self._display_line3, display_line4=self._display_line4, top_buttons=self._select_buttons, bottom_buttons=self._track_state_buttons, scales_button=self._scale_presets_button, octave_up=self._octave_up_button, octave_down=self._octave_down_button, side_buttons=self._side_buttons, repeat_button=self._repeat_button, accent_button=self._accent_button, double_button=self._double_button, in_button=self._in_button, out_button=self._out_button, param_controls=self._global_param_controls, param_touch=self._global_param_touch_buttons, tempo_control_tap=self._tempo_control_tap, master_control_tap=self._master_volume_control_tap, touch_strip=self._touch_strip_control, touch_strip_tap=self._touch_strip_tap, nav_up_button=self._nav_up_button, nav_down_button=self._nav_down_button, nav_left_button=self._nav_left_button, nav_right_button=self._nav_right_button, aftertouch=self._aftertouch_control, pad_parameters=self._pad_parameter_control, _notification=self._notification.use_single_line(2), priority=consts.BACKGROUND_PRIORITY)
+        self._matrix_background = BackgroundComponent()
+        self._matrix_background.set_enabled(False)
+        self._matrix_background.layer = Layer(matrix=self._session_matrix)
+
+    #  self._mod_background = ModifierBackgroundComponent(is_root=True)
+    #  self._mod_background.layer = Layer(shift_button=self._shift_button, velocity_slider = self._velocity_slider, stop_buttons = self._stop_buttons)
+
+
+    def _init_step_sequencer(self):
+        self._step_sequencer = StepSeqComponent(grid_resolution=self._grid_resolution)
+        self._step_sequencer.layer = self._create_step_sequencer_layer()
+
+    def _init_drum_component(self):
+        self._drum_component = DrumGroupComponent(name='Drum_Group', is_enabled=False)
+        self._drum_component.layer = Layer(
+            drum_matrix=self._session_matrix,
+            #    page_strip=self._touch_strip_control,
+            #    scroll_strip=self._with_shift(self._touch_strip_control),
+            #    solo_button=self._global_solo_button,
+            select_button=self._metronome_button,
+            #    delete_button=self._delete_button,
+            scroll_page_up_button=self._up_button,
+            scroll_page_down_button=self._down_button,
+            #    quantize_button=self._quantize_button,
+            #    mute_button=self._global_mute_button,
+            scroll_up_button=self._with_shift(self._up_button),
+            scroll_down_button=self._with_shift(self._down_button))
+
+    #    self._drum_component.select_drum_pad = self._selector.on_select_drum_pad
+    #    self._drum_component.quantize_pitch = self._quantize.quantize_pitch
 
     def _session_mode_layers(self):
         return [self._session, self._session_zoom]
         #, self._mixer
 
-    def _create_instrument(self):
-        self._instrument = MelodicComponent(grid_resolution=self._grid_resolution)
+    """lew sunday"""
 
-    def _instrument_layer(self):
-        return Layer(playhead=self._playhead,  # mute_button=self._global_mute_button,
-                     velocity_slider=self._velocity_slider,
-                     quantization_buttons=self._stop_buttons,
-                     loop_selector_matrix=self._double_press_matrix.submatrix[:8, :1],
-                     short_loop_selector_matrix=self._double_press_event_matrix.submatrix[:8, :1],
-                     scale_up_button=self._right_button,
-                     scale_down_button=self._left_button,
-                     octave_up_button=self._up_button,
-                     octave_down_button=self._down_button,
+    def _init_instrument(self):
+        instrument_basic_layer = Layer(
+            # octave_strip=self._with_shift(self._touch_strip_control),
+            # scales_toggle_button=self._tap_tempo_button,
 
-                     note_editor_matrices=ButtonMatrixElement(
-                         [[self._session_matrix.submatrix[:, 7 - row] for row in xrange(7)]])
-                     )
+            #   capture_button = self._tap_tempo_button,
+            octave_up_button=self._up_button, octave_down_button=self._down_button,
+            scale_up_button=self._with_shift(self._up_button),
+            scale_down_button=self._with_shift(self._down_button))
 
-    def _create_sequencer(self):
-        self._sequencer = StepSeqComponent(grid_resolution=self._grid_resolution)
+        self._instrument = MelodicComponent(skin=self._default_skin, is_enabled=False,
+                                            clip_creator=self._clip_creator, name='Melodic_Component',
+                                            grid_resolution=self._grid_resolution,
+                                            # note_editor_settings=self._add_note_editor_setting(),
+                                            layer=self._create_instrument_layer(),
+                                            instrument_play_layer=instrument_basic_layer + Layer(
+                                                matrix=self._session_matrix),
+                                            # touch_strip=self._touch_strip_control, touch_strip_indication=self._with_firmware_version(1, 16, ComboElement(self._touch_strip_control, modifiers=[self._select_button])),
+                                            # touch_strip_toggle=self._with_firmware_version(1, 16, ComboElement(self._touch_strip_tap, modifiers=[self._select_button])),
+                                            # aftertouch_control=self._aftertouch_control, delete_button=self._delete_button),
+                                            instrument_sequence_layer=instrument_basic_layer)  # + Layer(note_strip=self._touch_strip_control))
 
-    def _sequencer_layer(self):
+        self._on_note_editor_layout_changed.subject = self._instrument
+
+    def _init_note_repeat(self):
+        self._note_repeat = NoteRepeatComponent(name='Note_Repeat')
+        self._note_repeat.set_enabled(False)
+        self._note_repeat.set_note_repeat(self._c_instance.note_repeat)
+        self._note_repeat.layer = Layer(
+            # aftertouch_control=self._aftertouch_control,
+            select_buttons=self._stop_buttons,
+            # pad_parameters=self._pad_parameter_control
+        )
+        self._note_repeat.layer.priority = consts.DIALOG_PRIORITY
+        self._note_repeat_enabler = EnablingModesComponent(name='Note_Repeat_Enabler', component=self._note_repeat,
+                                                           toggle_value='DefaultButton.Alert',
+                                                           disabled_value='DefaultButton.On')
+        self._note_repeat_enabler.set_enabled(False)
+        self._note_repeat_enabler.layer = Layer(toggle_button=self._bank_button)
+
+    def _init_matrix_modes(self):
+        """ Switch between Session and StepSequencer modes """
+
+        """here we go trying to switch.... lew  05:53   21/10/17"""
+
+        self._auto_arm = AutoArmComponent(name='Auto_Arm')
+
+        self._drum_group_finder = DrumGroupFinderComponent()
+        self._on_drum_group_changed.subject = self._drum_group_finder
+
+        self._drum_modes = ModesComponent(name='Drum_Modes', is_enabled=False)
+        self._drum_modes.add_mode('sequencer', self._step_sequencer)
+        self._drum_modes.add_mode('64pads',
+                                  self._drum_component)  # added 15:18 subday 22/10/17     can maybe look into this. causes issues when trying to scroll.(drumcomp1)
+
+        self._drum_modes.selected_mode = 'sequencer'
+
+        self._note_modes = ModesComponent(name='Note_Modes')  # , is_enabled=False)
+        self._note_modes.add_mode('drums', [self._note_repeat_enabler, self._drum_modes])
+        self._drum_modes.selected_mode = 'sequencer'
+        self._note_modes.add_mode('looper',
+                                  self._audio_loop if consts.PROTO_AUDIO_NOTE_MODE else self._matrix_background)
+        self._note_modes.add_mode('instrument', [self._note_repeat_enabler, self._instrument])
+        self._note_modes.add_mode('disabled', self._matrix_background)
+        self._note_modes.selected_mode = 'disabled'
+        self._note_modes.set_enabled(False)
+
+        def switch_note_mode_layout():
+            self._matrix_modes.selected_mode = 'note'
+
+            if self._note_modes.selected_mode == 'instrument':
+                getattr(self._instrument, 'cycle_mode', nop)()
+            elif self._note_modes.selected_mode == 'drums':
+                getattr(self._drum_modes, 'cycle_mode', nop)()
+
+        self._matrix_modes = ModesComponent(name='Matrix_Modes', is_root=True)
+        self._matrix_modes.add_mode('session', self._session_mode_layers())
+        self._matrix_modes.add_mode('note', [self._drum_group_finder, self._view_control, self._note_modes],
+                                    behaviour=self._auto_arm.auto_arm_restore_behaviour(ReenterBehaviour,
+                                                                                        on_reenter=switch_note_mode_layout))
+
+        self._matrix_modes.selected_mode = 'note'
+        self._matrix_modes.layer = Layer(session_button=self._pan_button, note_button=self._user_button)
+
+        self._on_matrix_mode_changed.subject = self._matrix_modes
+        self._matrix_modes.selected_mode = 'note'
+
+        # added for looping capability
+        # self._looper = LooperComponent(self)
+        # self._looper.name = 'looper_Component'
+
+    def _create_device(self):
+        self._device = DeviceComponent(name=u'Device', is_enabled=False,
+                                       layer=Layer(parameter_controls=self._device_controls,
+                                                   bank_buttons=self._device_bank_buttons,
+                                                   bank_prev_button=self._device_prev_bank_button,
+                                                   bank_next_button=self._device_next_bank_button,
+                                                   on_off_button=self._device_on_off_button,
+                                                   lock_button=self._device_lock_button),
+                                       device_selection_follows_track_selection=True)
+
+    def _create_step_sequencer_layer(self):
+        return Layer(
+            velocity_slider=self._velocity_slider,
+            drum_matrix=self._session_matrix.submatrix[:4, 1:5],
+            # [4, 1:5],  mess with this for possible future 32 pad drum rack :
+
+            button_matrix=self._double_press_matrix.submatrix[4:8, 1:5],  # [4:8, 1:5],
+
+            #  next_page_button = self._bank_button,
+
+            select_button=self._user_button,
+            delete_button=self._stop_all_button,
+            playhead=self._playhead,
+            quantization_buttons=self._stop_buttons,
+            shift_button=self._shift_button,
+            loop_selector_matrix=self._double_press_matrix.submatrix[:4, :1],
+            # changed from [:8, :1] so as to enable bottem row of rack   . second value clip length rows
+            short_loop_selector_matrix=self._double_press_event_matrix.submatrix[:4, :1],
+            # changed from [:8, :1] no change noticed as of yet
+            drum_bank_up_button=self._up_button,
+            drum_bank_down_button=self._down_button)
+
+    #       capture_button = self._tap_tempo_button)
+
+
+    def _create_instrument_layer(self):
         return Layer(
             playhead=self._playhead,
-            velocity_slider=self._velocity_slider,
-            loop_selector_matrix=self._double_press_matrix.submatrix[4:8, 4],
-            short_loop_selector_matrix=self._double_press_event_matrix.submatrix[4:8, 4],
+            # mute_button=self._global_mute_button,
             quantization_buttons=self._stop_buttons,
-            button_matrix=self._session_matrix.submatrix[4:8, 0:4],
-            drum_matrix=self._session_matrix.submatrix[:4, :5],
-            #select_button=self._user_button,
-            delete_button=self._stop_all_button,
-            shift_button=self._shift_button,
-            drum_bank_up_button=self._up_button,
-            drum_bank_down_button=self._down_button,
-            drum_bank_detail_down_button=self._left_button,
-            drum_bank_detail_up_button=self._right_button,
-        )
+            loop_selector_matrix=self._double_press_matrix.submatrix[:8, :1],  # [:, 0]
+            short_loop_selector_matrix=self._double_press_event_matrix.submatrix[:, 0],  # [:, 0]
+            note_editor_matrices=ButtonMatrixElement(
+                [[self._session_matrix.submatrix[:, 4 - row] for row in xrange(7)]]))
+        # note_editor_matrices=ButtonMatrixElement([[ self._session_matrix.submatrix[:, 7 - row] for row in xrange(7) ]]))
 
-    def _init_auto_arm(self):
-        self._auto_arm = AutoArmComponent(is_enabled=True)
 
-        # added so as to have looping with pan_button held
-        '''self._select_modes = SelectComponent(self, tuple(self._raw_select_buttons), self._tap_tempo_button,
-                                             self._transport, self._looper, self._session, self._session_matrix,
-                                             self._session_record_button)
-        self._select_modes.name = 'Select_Modes'
-        self._select_modes.set_mode_toggle(self._pan_button)'''
+    def _session_layer(self):
+        def when_bank_on(button):
+            return self._bank_toggle.create_toggle_element(on_control=button)
 
-    # EVENT HANDLING FUNCTIONS
-    def reset_controlled_track(self):
-        self.set_controlled_track(self.song().view.selected_track)
+        def when_bank_off(button):
+            return self._bank_toggle.create_toggle_element(off_control=button)
+
+        return Layer(
+            track_bank_left_button=when_bank_off(self._left_button),
+            track_bank_right_button=when_bank_off(self._right_button),
+            scene_bank_up_button=when_bank_off(self._up_button),
+            scene_bank_down_button=when_bank_off(self._down_button),
+            page_left_button=when_bank_on(self._left_button),
+            page_right_button=when_bank_on(self._right_button),
+            page_up_button=when_bank_on(self._up_button),
+            page_down_button=when_bank_on(self._down_button),
+            #  stop_track_clip_buttons = self._stop_buttons,
+            stop_all_clips_button=self._stop_all_button,
+            scene_launch_buttons=self._scene_launch_buttons,
+            clip_launch_buttons=self._session_matrix)
+
+    def _session_zoom_layer(self):
+        return Layer(button_matrix=self._shifted_matrix,
+                     nav_left_button=self._with_shift(self._left_button),
+                     nav_right_button=self._with_shift(self._right_button),
+                     nav_up_button=self._with_shift(self._up_button),
+                     nav_down_button=self._with_shift(self._down_button),
+                     scene_bank_buttons=self._shifted_scene_buttons)
+
+
+    @subject_slot('selected_mode')
+    def _on_matrix_mode_changed(self, mode):
+        self._update_auto_arm(selected_mode=mode)
+
+    def _update_auto_arm(self, selected_mode=None):
+        self._auto_arm.set_enabled(selected_mode or self._matrix_modes.selected_mode == 'note')
+
+    @subject_slot('drum_group')
+    def _on_drum_group_changed(self):
+        self._select_note_mode()
+
+
+    def _select_note_mode(self):
+        """
+        Selects which note mode to use depending on the kind of
+        current selected track and its device chain...
+        """
+        track = self.song().view.selected_track
+        drum_device = self._drum_group_finder.drum_group
+        self._step_sequencer.set_drum_group_device(drum_device)
+        self._drum_component.set_drum_group_device(drum_device)
+        if track == None or track.is_foldable or track in self.song().return_tracks or track == self.song().master_track or track.is_frozen:
+            self._note_modes.selected_mode = 'disabled'
+        elif track and track.has_audio_input:
+            self._note_modes.selected_mode = 'looper'
+        elif drum_device:
+            self._note_modes.selected_mode = 'drums'
+        else:
+            self._note_modes.selected_mode = 'instrument'
+        self.reset_controlled_track()
+
+
+    @subject_slot('selected_mode')
+    def _on_note_editor_layout_changed(self, mode):
+        self.reset_controlled_track(mode)
+
+        # EVENT HANDLING FUNCTIONS
+    def reset_controlled_track(self, mode=None):
+        if mode == None:
+            mode = self._instrument.selected_mode
+        if self._instrument.is_enabled() and mode == 'sequence':
+            self.release_controlled_track()
+        else:
+            self.set_controlled_track(self.song().view.selected_track)
 
     def update(self):
         self.reset_controlled_track()
+        self.set_feedback_channels(FEEDBACK_CHANNELS)  # push added line
         super(APC40_MkII, self).update()
 
     def _on_selected_track_changed(self):
         self.reset_controlled_track()
-        if self._auto_arm.needs_restore_auto_arm:
-            self.schedule_message(1, self._auto_arm.restore_auto_arm)
-        super(APC40_MkII, self)._on_selected_track_changed()
+        self._select_note_mode()
+        #    self._main_modes.pop_groups(['add_effect'])
+        self._note_repeat_enabler.selected_mode = 'disabled'
 
     @contextmanager
     def component_guard(self):
@@ -371,4 +579,5 @@ class APC40_MkII(APC, OptimizedControlSurface):
         """ Adds some additional stuff to the injector, used in BaseMessenger """
         return inject(
             control_surface=const(self),
+            double_press_context=const(self._double_press_context),
             log_message=const(self.log_message))

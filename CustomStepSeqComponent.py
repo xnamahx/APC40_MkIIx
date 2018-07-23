@@ -1,30 +1,16 @@
-from itertools import imap, chain, starmap, izip, ifilter
+from itertools import chain, starmap, ifilter
 from _Framework.Util import first
 from _Framework.ClipCreator import ClipCreator
 from _Framework.SubjectSlot import subject_slot, subject_slot_group
 from _Framework.Layer import Layer
-from _Framework.SlideComponent import SlideComponent
 from .StepSeqComponent import StepSeqComponent
 from .StepSeqComponent import DrumGroupFinderComponent
-#from _PushLegacy.StepSeqComponent import DrumGroupFinderComponent
-#from pushbase.step_seq_component import StepSeqComponent
 from .SkinDefault import make_default_skin
-#from .CustomSkinDefault import make_default_skin
-#from _Framework.SlideComponent import Slideable, SlideComponent
 
-
-from NoteSettings import NoteEditorSettingsComponent 
-from .APCDrumGroupComponent import APCDrumGroupComponent
+from NoteSettings import NoteEditorSettingsComponent
 from APCMessenger import APCMessenger
 from MatrixMaps import PAD_FEEDBACK_CHANNEL
-from APCNoteEditorComponent import APCNoteEditorComponent
 
-
-#from _PushLegacy.LoopSelectorComponent import LoopSelectorComponent
-
-#from functools import partial
-#from _Framework import Task
-#from _Framework import Defaults
 from _Framework.Control import ButtonControl
 
 class StepSeqComponent(StepSeqComponent, APCMessenger):
@@ -32,6 +18,11 @@ class StepSeqComponent(StepSeqComponent, APCMessenger):
 
   next_page_button = ButtonControl()                               # lew 
  
+
+
+
+
+
 
   def __init__(self, *a, **k):
     super(StepSeqComponent, self).__init__(
@@ -44,8 +35,6 @@ class StepSeqComponent(StepSeqComponent, APCMessenger):
 #    self._grid_resolution = grid_resolution      # added 10/17
 #    self._slider = self.register_component(SlideComponent(self))
 
-    self._drum_group.__class__ = APCDrumGroupComponent
-    self._note_editor.__class__ = APCNoteEditorComponent
     self._setup_drum_group_finder()
     self._configure_playhead()
    
@@ -82,6 +71,9 @@ class StepSeqComponent(StepSeqComponent, APCMessenger):
   def set_velocity_slider(self, button_slider):
     self._note_editor.set_velocity_slider(button_slider)
 
+
+
+
   def _configure_playhead(self):
     self._playhead_component._notes=tuple(chain(*starmap(range, (
          (28, 32),
@@ -103,12 +95,20 @@ class StepSeqComponent(StepSeqComponent, APCMessenger):
   
   @subject_slot('drum_group')
   def _on_drum_group_changed(self):
-    self.set_device(self._drum_group_finder)
+    self.set_drum_group_device(self._drum_group_finder.drum_group)
   
   
   
   def on_selected_track_changed(self):
-    self.set_device(self._drum_group_finder)
+    self.set_drum_group_device(self._drum_group_finder.drum_group)
+
+
+
+
+
+
+
+
 
   def set_button_matrix(self, matrix):
     """ This method, as with most set_* methods, is called every time
@@ -129,7 +129,6 @@ class StepSeqComponent(StepSeqComponent, APCMessenger):
       for button, _ in ifilter(first, matrix.iterbuttons()):
         button.set_channel(PAD_FEEDBACK_CHANNEL)
 
-
   """lew adding note matrix   15/10/17 will see"""
 
 #  def set_note_matrix(self, matrix):
@@ -138,35 +137,7 @@ class StepSeqComponent(StepSeqComponent, APCMessenger):
 #      for button, _ in ifilter(first, matrix.iterbuttons()):
  #       button.set_channel(PAD_FEEDBACK_CHANNEL)
 
-  def set_octave_down_button(self, button):
-    pass
-    #self._note_selector.set_octave_down_button(button)
-    #self._slider.set_scroll_page_down_button(button)
 
-
-  def set_octave_up_button(self, button):
-    pass
-    #self._note_selector.set_octave_up_button(button)
-    #self._slider.set_scroll_page_up_button(button)
-
-
-  def set_scale_down_button(self, button):
-      pass
-  #  self._note_selector._slider.set_octave_down_button(button)
-
-
-  def set_scale_up_button(self, button):
-      pass
-  #  self._note_selector.set_scale_up_button(button)
-
-
-  #def set_octave_down_button(self, button):
-  #  pass
-   #     self._slider.set_scroll_page_down_button(button)
-
-  #def set_octave_up_button(self, button):
-  #  pass
-   #     self._slider.set_scroll_page_down_button(button)
 
 
 

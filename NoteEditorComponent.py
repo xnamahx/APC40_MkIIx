@@ -433,8 +433,9 @@ class NoteEditorComponent(CompoundComponent, Subject):
                 color = self._step_colors[index]
                 button = self._matrix.get_button(col, row)
                 #if button._skin_name != 'NoteEditor.StepEmpty':
-                self._matrix.set_light(col, row, color)
-                button._skin_name = color
+                if button:
+                    self._matrix.set_light(col, row, color)
+                    button._skin_name = color
 
     def _get_step_count(self):
         return self._width * self._height

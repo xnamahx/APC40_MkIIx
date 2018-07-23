@@ -7,13 +7,16 @@ from _Framework.CompoundComponent import CompoundComponent
 from _Framework.SubjectSlot import subject_slot, Subject, subject_slot_group
 from _Framework.Util import forward_property, find_if
 
-from .CustomDrumGroupComponent import DrumGroupComponent
+from APCNoteEditorComponent import APCNoteEditorComponent
+
+from .APCDrumGroupComponent import DrumGroupComponent
 from .NoteEditorComponent import NoteEditorComponent
 from .LoopSelectorComponent import LoopSelectorComponent
 from .PlayheadComponent import PlayheadComponent
 from .NoteEditorPaginator import NoteEditorPaginator
 
 #from ableton.v2.control_surface.control import control_list, ButtonControl
+
 
 from MatrixMaps import PLAYHEAD_FEEDBACK_CHANNELS     # added 10/17
 
@@ -26,10 +29,8 @@ class DrumGroupFinderComponent(ControlSurfaceComponent, Subject):
     for the first available drum-rack (deep-first), updating as the
     device list changes.
     """
-    __subject_events__ = ('drum_group','instrument',)
+    __subject_events__ = ('drum_group',)
     _drum_group = None
-    _instrument = None
-
 
     @property
     def drum_group(self):
@@ -37,13 +38,6 @@ class DrumGroupFinderComponent(ControlSurfaceComponent, Subject):
         The latest found drum rack.
         """
         return self._drum_group
-
-    @property
-    def instrument(self):
-        """
-        The latest found instrument.
-        """
-        return self._instrument
 
     @property
     def root(self):
@@ -68,7 +62,6 @@ class DrumGroupFinderComponent(ControlSurfaceComponent, Subject):
         if self.is_enabled():
             self._update_listeners()
             self._update_drum_group()
-            self._update_instrument()
 
     def _update_listeners(self):
         root = self.root
@@ -83,12 +76,6 @@ class DrumGroupFinderComponent(ControlSurfaceComponent, Subject):
             self._drum_group = drum_group
             self.notify_drum_group()
 
-    def _update_instrument(self):
-        instrument = find_instrument(self.root)
-        if type(instrument) != type(self._instrument) or instrument != self._instrument:
-            self._instrument = instrument
-            self.notify_instrument()
-
 
 def find_instrument_devices(track_or_chain):
     """
@@ -99,18 +86,6 @@ def find_instrument_devices(track_or_chain):
     if instrument and not instrument.can_have_drum_pads:
         if instrument.can_have_chains:
             return chain([instrument], *imap(find_instrument_devices, instrument.chains))
-    return []
-
-def find_instrument(track_or_chain):
-    """
-    Returns a list with all instrument rack descendants from a track
-    or chain.
-    """
-    instrument = find_if(lambda d: d.type == Live.Device.DeviceType.instrument, track_or_chain.devices)
-    if instrument and not instrument.can_have_drum_pads:
-        if instrument.can_have_chains:
-            return instrument
-            #            return chain([instrument], *imap(find_instrument_devices, instrument.chains))
     return []
 
 
@@ -137,24 +112,20 @@ class StepSeqComponent(CompoundComponent):
     """ Step Sequencer Component """
 
   #  del_button = ButtonControl()
-   
-    
+
+
     def __init__(self, clip_creator = None, skin = None, grid_resolution = None, note_editor_settings = None, *a, **k):
         super(StepSeqComponent, self).__init__(*a, **k)
         if not clip_creator:
             raise AssertionError
         if not skin:
             raise AssertionError
-       
-       
-  
-       
-       
+
        # added 10/17
        
         if not InstrumentComponent:
             raise AssertionError
-        if not NoteEditorComponent:
+        if not APCNoteEditorComponent:
             raise AssertionError
        
        # continue 
@@ -162,10 +133,11 @@ class StepSeqComponent(CompoundComponent):
         self._grid_resolution = grid_resolution
         note_editor_settings and self.register_component(note_editor_settings)
         self._note_editor, self._loop_selector, self._big_loop_selector, self._drum_group = self.register_components(
-            NoteEditorComponent(settings_mode=note_editor_settings, clip_creator=clip_creator, grid_resolution=self._grid_resolution),
+            APCNoteEditorComponent(settings_mode=note_editor_settings, clip_creator=clip_creator, grid_resolution=self._grid_resolution),
             LoopSelectorComponent(clip_creator=clip_creator),
             LoopSelectorComponent(clip_creator=clip_creator, measure_length=0.25),   # must match loop selector
-            DrumGroupComponent()
+            DrumGroupComponent(),
+            #, self._instrument InstrumentComponent()
         )
 
     #    self._note_selector = InstrumentComponent
@@ -182,11 +154,13 @@ class StepSeqComponent(CompoundComponent):
         self._mute_button = None
         self._solo_button = None
 
+
+
+
         self._on_pressed_pads_changed.subject = self._drum_group
         self._on_playing_position_changed.subject = self._loop_selector
 
-  #      self._on_selected_note_changed.subject = self._instrument   # added 10/17   throws error. find sloution
-        
+
         self._on_detail_clip_changed.subject = self.song().view
         self._detail_clip = None
         self._playhead = None
@@ -237,18 +211,12 @@ class StepSeqComponent(CompoundComponent):
             
         #    self._playhead.velocity = int(self._skin[self._playhead_color])
 
-    def set_device(self, finder):
-        if not (not finder._drum_group or finder._drum_group.can_have_drum_pads):
+    def set_drum_group_device(self, drum_group_device):
+        if not (not drum_group_device or drum_group_device.can_have_drum_pads):
             raise AssertionError
-        if finder._drum_group:
-            self._drum_group.set_drum_group_device(finder._drum_group)
-            self._on_selected_drum_pad_changed.subject = finder._drum_group.view if finder._drum_group else None
-            self._on_selected_drum_pad_changed()
-        else:
-            pass
-            #self._drum_group.set_drum_group_device(finder._instrument)
-            #self._on_selected_drum_pad_changed.subject = finder._instrument.view if finder._instrument else None
-            #self._on_selected_drum_pad_changed()
+        self._drum_group.set_drum_group_device(drum_group_device)
+        self._on_selected_drum_pad_changed.subject = drum_group_device.view if drum_group_device else None
+        self._on_selected_drum_pad_changed()
 
     def set_touch_strip(self, touch_strip):
         self._drum_group.set_page_strip(touch_strip)
@@ -393,11 +361,11 @@ class StepSeqComponent(CompoundComponent):
         selected_note = self._instrument.selected_note
         if selected_note >= 0:
             self._note_editor.editing_note = selected_note    
+
     
-    
-    
-    
-    
+
+
+
     @subject_slot('selected_drum_pad')
     def _on_selected_drum_pad_changed(self):
         drum_group_view = self._on_selected_drum_pad_changed.subject
@@ -408,7 +376,7 @@ class StepSeqComponent(CompoundComponent):
 
    
    
-   
+
 
     #@subject_slot('value')
   #  def _set_del(self, value): 

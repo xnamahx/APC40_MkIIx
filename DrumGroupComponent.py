@@ -113,19 +113,34 @@ class DrumGroupComponent(SlideComponent, Slideable):
         self._update_identifier_translations()
         self._update_led_feedback()
 
+    def refresh_device(self):
+        if self._selected_pads:
+            self._selected_pads = []
+            self.notify_pressed_pads()
+        self._create_and_set_pad_translations()
+        self._update_control_from_script()
+        self._update_identifier_translations()
+        self._update_led_feedback()
+
     def set_drum_group_device(self, drum_group_device):
-        if drum_group_device and not drum_group_device.can_have_drum_pads:
-            drum_group_device = None
+        ''''if drum_group_device and not drum_group_device.can_have_drum_pads:
+            drum_group_device = None'''
+
         if drum_group_device != self._drum_group_device:
-            self._on_visible_drum_pads_changed.subject = drum_group_device
             drum_group_view = drum_group_device.view if drum_group_device else None
-            self._on_selected_drum_pad_changed.subject = drum_group_view
-            self._on_drum_pads_scroll_position_changed.subject = drum_group_view
-            self._drum_group_device = drum_group_device
-            self._update_drum_pad_listeners()
-            self._on_selected_drum_pad_changed()
-            self._update_identifier_translations()
-            super(DrumGroupComponent, self).update()
+            if drum_group_device.can_have_drum_pads:
+                self._on_visible_drum_pads_changed.subject = drum_group_device
+                self._on_selected_drum_pad_changed.subject = drum_group_view
+                self._on_drum_pads_scroll_position_changed.subject = drum_group_view
+                self._drum_group_device = drum_group_device
+                self._update_drum_pad_listeners()
+                self._on_selected_drum_pad_changed()
+                self._update_identifier_translations()
+                super(DrumGroupComponent, self).update()
+            else:
+                pass
+
+        self.refresh_device()
 
     def _update_drum_pad_listeners(self):
         """
