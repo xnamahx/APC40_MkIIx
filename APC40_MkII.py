@@ -16,6 +16,7 @@ from _APC.APC import APC
 from _APC.DeviceComponent import DeviceComponent
 from _APC.DeviceBankButtonElement import DeviceBankButtonElement
 from _APC.DetailViewCntrlComponent import DetailViewCntrlComponent
+from _APC.SessionComponent import SessionComponent
 from _APC.ControlElementUtils import make_button, make_encoder, make_slider, make_ring_encoder, make_pedal_button
 from _APC.SkinDefault import make_rgb_skin, make_default_skin, make_stop_button_skin, make_crossfade_button_skin
 from . import Colors
@@ -23,10 +24,15 @@ from .BankToggleComponent import BankToggleComponent
 from .MixerComponent import MixerComponent
 from .QuantizationComponent import QuantizationComponent
 from .TransportComponent import TransportComponent
-from .CustomSessionComponent import CustomSessionComponent as SessionComponent
+from .CustomSessionComponent import CustomSessionComponent
+
+
 
 NUM_TRACKS = 8
 NUM_SCENES = 5
+
+import pydevd
+
 
 class APC40_MkII(APC, OptimizedControlSurface):
 
@@ -36,6 +42,9 @@ class APC40_MkII(APC, OptimizedControlSurface):
         self._default_skin = make_default_skin()
         self._stop_button_skin = make_stop_button_skin()
         self._crossfade_button_skin = make_crossfade_button_skin()
+
+        pydevd.settrace('localhost', port=4223, stdoutToServer=True, stderrToServer=True)
+
         with self.component_guard():
             self._create_controls()
             self._create_bank_toggle()
@@ -68,7 +77,6 @@ class APC40_MkII(APC, OptimizedControlSurface):
         def make_stop_button(track):
             return make_button(track, 52, name='%d_Stop_Button' % track, skin=self._stop_button_skin)
 
-        self._metronome_button = make_button(0, 90, name='Delete_Button')
         self._shift_button = make_button(0, 98, name='Shift_Button', resource_type=PrioritizedResource)
         self._bank_button = make_on_off_button(0, 103, name='Bank_Button')
         self._left_button = make_button(0, 97, name='Bank_Select_Left_Button')
@@ -119,7 +127,7 @@ class APC40_MkII(APC, OptimizedControlSurface):
         self._quantization_buttons = ButtonMatrixElement(rows=[
          [ ComboElement(button, modifiers=[self._shift_button]) for button in self._raw_select_buttons
          ]])
-
+        self._metronome_button = make_on_off_button(0, 90, name='Metronome_Button')
         self._play_button = make_on_off_button(0, 91, name='Play_Button')
         self._record_button = make_on_off_button(0, 93, name='Record_Button')
         self._session_record_button = make_on_off_button(0, 102, name='Session_Record_Button')
@@ -168,18 +176,13 @@ class APC40_MkII(APC, OptimizedControlSurface):
         def when_bank_off(button):
             return self._bank_toggle.create_toggle_element(off_control=button)
 
-        self._session = SessionComponent(NUM_TRACKS, NUM_SCENES, auto_name=True, is_enabled=False, enable_skinning=True, layer=Layer( track_bank_left_button=when_bank_off(self._left_button), track_bank_right_button=when_bank_off(self._right_button), scene_bank_up_button=when_bank_off(self._up_button), scene_bank_down_button=when_bank_off(self._down_button), page_left_button=when_bank_on(self._left_button), page_right_button=when_bank_on(self._right_button), page_up_button=when_bank_on(self._up_button), page_down_button=when_bank_on(self._down_button), stop_track_clip_buttons=self._stop_buttons, stop_all_clips_button=self._stop_all_button, scene_launch_buttons=self._scene_launch_buttons, clip_launch_buttons=self._session_matrix))
-        self._session.set_delete_button(self._metronome_button)
-        self._session.set_copy_button(self._nudge_down_button)
-        self._session.set_paste_button(self._nudge_up_button)
-        #self._session.set_delete_button(self._nudge_down_button)
-
-        self._session.add_clip_button_function()
-
+        self._session = CustomSessionComponent(NUM_TRACKS, NUM_SCENES, auto_name=True, is_enabled=False, enable_skinning=True, layer=Layer(track_bank_left_button=when_bank_off(self._left_button), track_bank_right_button=when_bank_off(self._right_button), scene_bank_up_button=when_bank_off(self._up_button), scene_bank_down_button=when_bank_off(self._down_button), page_left_button=when_bank_on(self._left_button), page_right_button=when_bank_on(self._right_button), page_up_button=when_bank_on(self._up_button), page_down_button=when_bank_on(self._down_button), stop_track_clip_buttons=self._stop_buttons, stop_all_clips_button=self._stop_all_button, scene_launch_buttons=self._scene_launch_buttons, clip_launch_buttons=self._session_matrix))
         clip_color_table = Colors.LIVE_COLORS_TO_MIDI_VALUES.copy()
         clip_color_table[16777215] = 119
         self._session.set_rgb_mode(clip_color_table, Colors.RGB_COLOR_TABLE)
         self._session_zoom = SessionZoomingComponent(self._session, name='Session_Overview', enable_skinning=True, is_enabled=False, layer=Layer(button_matrix=self._shifted_matrix, nav_left_button=self._with_shift(self._left_button), nav_right_button=self._with_shift(self._right_button), nav_up_button=self._with_shift(self._up_button), nav_down_button=self._with_shift(self._down_button), scene_bank_buttons=self._shifted_scene_buttons))
+        self._session.set_delete_button(self._nudge_down_button)
+        self._session.set_copy_button(self._nudge_up_button)
 
     def _create_mixer(self):
         self._mixer = MixerComponent(NUM_TRACKS, auto_name=True, is_enabled=False, invert_mute_feedback=True, layer=Layer(volume_controls=self._volume_controls, arm_buttons=self._arm_buttons, solo_buttons=self._solo_buttons, mute_buttons=self._mute_buttons, shift_button=self._shift_button, track_select_buttons=self._select_buttons, prehear_volume_control=self._prehear_control, crossfader_control=self._crossfader_control, crossfade_buttons=self._crossfade_buttons))
