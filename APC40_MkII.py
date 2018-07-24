@@ -2,8 +2,10 @@
 # Compiled at: 2018-04-23 20:27:04
 from __future__ import absolute_import, print_function, unicode_literals
 from functools import partial
+from contextlib import contextmanager
+
 from _Framework.ButtonMatrixElement import ButtonMatrixElement
-from _Framework.ComboElement import ComboElement, DoublePressElement, MultiElement
+from _Framework.ComboElement import ComboElement, DoublePressElement, MultiElement, DoublePressContext
 from _Framework.ControlSurface import OptimizedControlSurface
 from _Framework.Layer import Layer
 from _Framework.ModesComponent import ModesComponent, ImmediateBehaviour, DelayMode, AddLayerMode
@@ -11,7 +13,9 @@ from _Framework.Resource import PrioritizedResource
 from _Framework.SessionRecordingComponent import SessionRecordingComponent
 from _Framework.SessionZoomingComponent import SessionZoomingComponent
 from _Framework.ClipCreator import ClipCreator
-from _Framework.Util import recursive_map
+from _Framework.Util import const, nop, recursive_map
+from _Framework.Dependency import inject
+
 from _APC.APC import APC
 from _APC.DeviceComponent import DeviceComponent
 from _APC.DeviceBankButtonElement import DeviceBankButtonElement
@@ -25,6 +29,8 @@ from .MixerComponent import MixerComponent
 from .QuantizationComponent import QuantizationComponent
 from .TransportComponent import TransportComponent
 from .CustomSessionComponent import CustomSessionComponent
+from .SkinDefault import make_default_skin
+
 
 
 
@@ -37,13 +43,15 @@ import pydevd
 class APC40_MkII(APC, OptimizedControlSurface):
 
     def __init__(self, *a, **k):
+
+        pydevd.settrace('localhost', port=4223, stdoutToServer=True, stderrToServer=True)
+
         super(APC40_MkII, self).__init__(*a, **k)
         self._color_skin = make_rgb_skin()
         self._default_skin = make_default_skin()
         self._stop_button_skin = make_stop_button_skin()
         self._crossfade_button_skin = make_crossfade_button_skin()
-
-        pydevd.settrace('localhost', port=4223, stdoutToServer=True, stderrToServer=True)
+        self._double_press_context = DoublePressContext()
 
         with self.component_guard():
             self._create_controls()
@@ -56,6 +64,9 @@ class APC40_MkII(APC, OptimizedControlSurface):
             self._create_quantization_selection()
             self._create_recording()
             self._session.set_mixer(self._mixer)
+
+            self._skin = make_default_skin()
+
         self.set_highlighting_session_component(self._session)
         self.set_device_component(self._device)
 
@@ -222,3 +233,19 @@ class APC40_MkII(APC, OptimizedControlSurface):
 
     def _product_model_id_byte(self):
         return 41
+
+
+    @contextmanager
+    def component_guard(self):
+        """ Customized to inject additional things """
+        with super(APC40_MkII, self).component_guard():
+            with self.make_injector().everywhere():
+                yield
+
+    def make_injector(self):
+        """ Adds some additional stuff to the injector, used in BaseMessenger """
+        return inject(
+            double_press_context=const(self._double_press_context),
+            control_surface=const(self),
+
+            log_message=const(self.log_message))
