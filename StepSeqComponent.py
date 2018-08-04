@@ -3,14 +3,14 @@ from _Framework.Util import first
 from _Framework.ClipCreator import ClipCreator
 from _Framework.SubjectSlot import subject_slot, subject_slot_group
 from _Framework.Layer import Layer
-from _PushLegacy.StepSeqComponent import StepSeqComponent, DrumGroupFinderComponent
+from .CustomStepSeqComponent import StepSeqComponent, DrumGroupFinderComponent
 from .SkinDefault import make_default_skin
-from .MatrixMaps import PAD_FEEDBACK_CHANNEL
+from .MatrixMaps import SEQ_FEEDBACK_CHANNEL
 
 from .NoteSettings import NoteEditorSettingsComponent
-from .APCDrumGroupComponent import APCDrumGroupComponent
+#from .APCDrumGroupComponent import APCDrumGroupComponent
 from .APCMessenger import APCMessenger
-from .APCNoteEditorComponent import APCNoteEditorComponent
+#from .APCNoteEditorComponent import APCNoteEditorComponent
 
 # from _PushLegacy.LoopSelectorComponent import LoopSelectorComponent
 
@@ -34,8 +34,8 @@ class StepSeqComponent(StepSeqComponent, APCMessenger):
             *a, **k)
 
         #    self._grid_resolution = grid_resolution      # added 10/17
-        self._drum_group.__class__ = APCDrumGroupComponent
-        self._note_editor.__class__ = APCNoteEditorComponent
+        #self._drum_group.__class__ = APCDrumGroupComponent
+        #self._note_editor.__class__ = APCNoteEditorComponent
         self._setup_drum_group_finder()
         self._configure_playhead()
 
@@ -92,16 +92,19 @@ class StepSeqComponent(StepSeqComponent, APCMessenger):
         """ This method, as with most set_* methods, is called every time
         This component is enabled """
         self._note_editor_matrix = matrix
-        self._update_note_editor_matrix()
         if matrix:
             for button, _ in ifilter(first, matrix.iterbuttons()):
-                button.set_channel(PAD_FEEDBACK_CHANNEL)
+                button.set_channel(SEQ_FEEDBACK_CHANNEL)
+        self._update_note_editor_matrix()
+        self._note_editor.set_enabled(True)
+        self._big_loop_selector.set_loop_selector_matrix(self._note_editor_matrix)
+        self._note_editor.set_button_matrix(self._note_editor_matrix)
 
     def set_loop_selector_matrix(self, matrix):
         self._loop_selector.set_loop_selector_matrix(matrix)
         if matrix:
             for button, _ in ifilter(first, matrix.iterbuttons()):
-                button.set_channel(PAD_FEEDBACK_CHANNEL)
+                button.set_channel(SEQ_FEEDBACK_CHANNEL)
 
     """lew adding note matrix   15/10/17 will see"""
 

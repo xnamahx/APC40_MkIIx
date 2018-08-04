@@ -28,3 +28,19 @@ class RingedEncoderElement(RingedEncoderElement, TouchEncoderElementBase, APCMes
       delta = -0.01 
     self._prev_value = value
     return delta
+
+  def add_touch_value_listener(self, *a, **k):
+      pass
+      #if self.value_listener_count() == 0:
+      #    self.request_listen_nested_control_elements()
+      #super(RingedEncoderElement, self).add_touch_value_listener(*a, **k)
+
+  def remove_touch_value_listener(self, *a, **k):
+      pass
+      #super(RingedEncoderElement, self).remove_touch_value_listener(*a, **k)
+      #if self.value_listener_count() == 0:
+      #    self.unrequest_listen_nested_control_elements()
+
+  def on_nested_control_element_value(self, value, control):
+      pass
+      #self.notify_touch_value(value)

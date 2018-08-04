@@ -10,7 +10,7 @@ from .PadControl import PadControl    # added
 
 
 from .DrumGroupComponent import DrumGroupComponent
-from .MatrixMaps import PAD_FEEDBACK_CHANNEL
+from .MatrixMaps import DRUM_FEEDBACK_CHANNEL
 from .APCMessenger import APCMessenger
 
 
@@ -33,7 +33,7 @@ class APCDrumGroupComponent(DrumGroupComponent, APCMessenger):
   
   #switched 10/17
   def __init__(self, *a, **k):
-      super(DrumGroupComponent, self).__init__(touch_slideable=self, translation_channel=PAD_FEEDBACK_CHANNEL, dragging_enabled=True, *a, **k)
+      super(DrumGroupComponent, self).__init__(touch_slideable=self, translation_channel=DRUM_FEEDBACK_CHANNEL, dragging_enabled=True, *a, **k)
 
   position_count = 32
   page_length = 4

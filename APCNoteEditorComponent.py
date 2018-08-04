@@ -26,6 +26,8 @@ class APCNoteEditorComponent(NoteEditorComponent, APCMessenger):
   And add colors to note velocity display
   """
 
+  _velocity = 100
+
   def _add_note_in_step(self, step, modify_existing = True):
     """
     Add note in given step if there are none in there, otherwise

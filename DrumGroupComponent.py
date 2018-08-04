@@ -3,7 +3,7 @@ from _Framework.Control import control_matrix
 from _Framework.DrumGroupComponent import DrumGroupComponent as DrumGroupComponentBase
 from _Framework.SubjectSlot import subject_slot
 from .consts import MessageBoxText
-from .MatrixMaps import PAD_FEEDBACK_CHANNEL
+from .MatrixMaps import PAD_FEEDBACK_CHANNEL, DRUM_FEEDBACK_CHANNEL
 from .MessageBoxComponent import Messenger
 from .PadControl import PadControl
 from .SlideableTouchStripComponent import SlideableTouchStripComponent
@@ -15,7 +15,7 @@ class DrumGroupComponent(SlideableTouchStripComponent, DrumGroupComponentBase, M
     drum_matrix = control_matrix(PadControl)
 
     def __init__(self, *a, **k):
-        super(DrumGroupComponent, self).__init__(touch_slideable=self, translation_channel=PAD_FEEDBACK_CHANNEL, dragging_enabled=True, *a, **k)
+        super(DrumGroupComponent, self).__init__(touch_slideable=self, translation_channel=DRUM_FEEDBACK_CHANNEL, dragging_enabled=True, *a, **k)
 
     position_count = 32
     page_length = 4

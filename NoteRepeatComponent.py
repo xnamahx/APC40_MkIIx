@@ -60,9 +60,9 @@ class NoteRepeatComponent(CompoundComponent):
         self._options.select_buttons.set_control_element(buttons)
 
     def set_note_repeat(self, note_repeat):
-        if not note_repeat:
-            note_repeat = DummyNoteRepeat()
-            self._note_repeat.enabled = self._note_repeat != None and False
+        note_repeat = note_repeat or DummyNoteRepeat()
+        if self._note_repeat != None:
+            self._note_repeat.enabled = False
         self._note_repeat = note_repeat
         self._update_note_repeat(enabled=self.is_enabled())
 

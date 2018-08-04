@@ -7,22 +7,26 @@ from _Framework.CompoundComponent import CompoundComponent
 from _Framework.Util import sign, product, in_range, clamp, forward_property, first
 from _Framework import Task, Defaults
 from .LoopSelectorComponent import create_clip_in_selected_slot
-from .MatrixMaps import PAD_FEEDBACK_CHANNEL
+from .MatrixMaps import PAD_FEEDBACK_CHANNEL, PLAYHEAD_FEEDBACK_CHANNEL
 DEFAULT_VELOCITY = 100
 BEAT_TIME_EPSILON = 1e-05
 
 def color_for_note(note):
-    velocity = note[3]
-    muted = note[4]
-    if not muted:
-        if velocity == 127:
-            return 'Full'
-        elif velocity >= 100:
-            return 'High'
-        else:
-            return 'Low'
+  velocity = note[3]
+  muted = note[4]
+  if not muted:
+    if velocity == 127:
+      return 'Full'
+    elif velocity >= 94:
+      return 'High'
+    elif velocity >= 62:
+      return 'Medium'
+    elif velocity >= 31:
+      return "Low"
     else:
-        return 'Muted'
+      return 'Empty'
+  else:
+    return 'Muted'
 
 
 def most_significant_note(notes):
@@ -111,7 +115,7 @@ class LoopingTimeStep(TimeStep):
 
 
 class NoteEditorComponent(CompoundComponent, Subject):
-    __subject_events__ = ('page_length', 'active_steps', 'notes_changed')
+    __subject_events__ = ('page_length', 'active_steps', 'notes_changed', 'modify_all_notes')
 
     def __init__(self, settings_mode = None, clip_creator = None, grid_resolution = None, *a, **k):
         super(NoteEditorComponent, self).__init__(*a, **k)
@@ -169,7 +173,10 @@ class NoteEditorComponent(CompoundComponent, Subject):
         self._selected_page_point = point
         index = int(point / self.page_length) if self.page_length != 0 else 0
         if index != self._page_index:
-            self._page_index = index
+            self._page_index = index != self._page_index and index
+
+        #    self._page_index = index    switched for above 10/17
+
         self._on_clip_notes_changed()
 
     def _get_modify_all_notes_enabled(self):
@@ -178,10 +185,19 @@ class NoteEditorComponent(CompoundComponent, Subject):
     def _set_modify_all_notes_enabled(self, enabled):
         if enabled != self._modify_all_notes_enabled:
             self._modify_all_notes_enabled = enabled
-            if self._settings_mode:
-                self._settings_mode.selected_mode = 'enabled' if enabled else 'disabled'
-                self._settings_mode.selected_setting = 'pad_settings'
+
+ # greened out 10/17 so if need be switch back to below
+
+ #           if self._settings_mode:
+ #               self._settings_mode.selected_mode = 'enabled' if enabled else 'disabled'
+ #               self._settings_mode.selected_setting = 'pad_settings'
+ #           self._on_clip_notes_changed()
+
+ #   modify_all_notes_enabled = property(_get_modify_all_notes_enabled, _set_modify_all_notes_enabled)
+
             self._on_clip_notes_changed()
+            #self.notify_modify_all_notes()
+
 
     modify_all_notes_enabled = property(_get_modify_all_notes_enabled, _set_modify_all_notes_enabled)
 
@@ -210,9 +226,12 @@ class NoteEditorComponent(CompoundComponent, Subject):
         if matrix:
             self._width = matrix.width()
             self._height = matrix.height()
-            matrix.reset()
+            #matrix.reset()
             for button, _ in ifilter(first, matrix.iterbuttons()):
                 button.set_channel(PAD_FEEDBACK_CHANNEL)
+
+                #button.set_channel(PLAYHEAD_FEEDBACK_CHANNELS[0])
+
 
         for task in self._step_tap_tasks.itervalues():
             task.kill()
@@ -305,7 +324,11 @@ class NoteEditorComponent(CompoundComponent, Subject):
             for row, col in product(xrange(self._height), xrange(self._width)):
                 index = row * self._width + col
                 color = self._step_colors[index]
-                self._matrix.set_light(col, row, color)
+                button = self._matrix.get_button(col, row)
+                #if button._skin_name != 'NoteEditor.StepEmpty':
+                if button:
+                    self._matrix.set_light(col, row, color)
+                    button._skin_name = color
 
     def _get_step_count(self):
         return self._width * self._height
@@ -419,6 +442,8 @@ class NoteEditorComponent(CompoundComponent, Subject):
                 pitch = self._note_index
                 mute = self._mute_button and self._mute_button.is_pressed()
                 velocity = 127 if self.full_velocity else DEFAULT_VELOCITY
+                if self._velocity != None:
+                    velocity = self._velocity
                 note = (pitch,
                  time,
                  self._get_step_length(),
@@ -436,6 +461,31 @@ class NoteEditorComponent(CompoundComponent, Subject):
             time_step = self._time_step(self._get_step_start_time(x, y))
             for time, length in time_step.connected_time_ranges():
                 self._sequencer_clip.remove_notes(time, self._note_index, length, 1)
+
+
+    #added 10/17
+
+    def set_nudge_offset(self, value):
+        self._modify_note_property('_nudge_offset', value)
+
+    def set_length_offset(self, value):
+        self._modify_note_property('_length_offset', value)
+
+  #  def set_velocity_offset(self, value):
+  #      self._modify_note_property('_velocity_offset', value)
+
+    def _modify_note_property(self, note_property, value):
+        if self.is_enabled():
+            setattr(self, note_property, getattr(self, note_property) + value)
+            self._trigger_modification()
+
+
+
+
+
+  # continue
+
+
 
     @subject_slot('setting_changed')
     def _on_setting_changed(self, index, value):
@@ -591,3 +641,19 @@ class NoteEditorComponent(CompoundComponent, Subject):
 
     def _is_triplet_quantization(self):
         return self._triplet_factor == 0.75
+
+    def set_velocity_slider(self, button_slider):
+        if not hasattr(self, '_velocity'):
+            self._velocity = 100
+        self._velocity_slider = button_slider
+        self._on_velocity_changed.subject = button_slider
+        self._update_velocity_slider()
+
+    def _update_velocity_slider(self):
+        if hasattr(self, "_velocity_slider") and self._velocity_slider:
+            self._velocity_slider.send_value(self._velocity, force_send=True)
+
+    @subject_slot("value")
+    def _on_velocity_changed(self, value):
+        self._velocity = value
+        self._update_velocity_slider()

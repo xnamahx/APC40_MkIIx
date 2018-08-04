@@ -7,6 +7,8 @@ from _Framework.Control import ButtonControl
 from _Framework.SubjectSlot import subject_slot, Subject
 from _Framework.ControlSurfaceComponent import ControlSurfaceComponent
 from _Framework.Util import contextmanager, clamp
+from _Framework.ComboElement import DoublePressElement
+
 from itertools import izip
 
 def create_clip_in_selected_slot(creator, song, clip_length = None):
@@ -68,7 +70,7 @@ class LoopSelectorComponent(ControlSurfaceComponent):
     """
     next_page_button = ButtonControl()
     prev_page_button = ButtonControl()
-    __subject_events__ = ('is_following',)
+    __subject_events__ = ('is_following', 'playing_position',)
 
     def __init__(self, clip_creator = None, measure_length = 4.0, follow_detail_clip = False, paginator = None, *a, **k):
         super(LoopSelectorComponent, self).__init__(*a, **k)
@@ -89,12 +91,17 @@ class LoopSelectorComponent(ControlSurfaceComponent):
         self._last_playhead_page = -1
         self._follow_task = self._tasks.add(Task.sequence(Task.wait(Defaults.MOMENTARY_DELAY), Task.run(partial(self._set_is_following, True))))
         self._follow_task.kill()
+        self._position = 0
         if follow_detail_clip:
             self._on_detail_clip_changed.subject = self.song().view
         self._on_session_record_changed.subject = self.song()
         self._on_song_playback_status_changed.subject = self.song()
         if paginator is not None:
             self.set_paginator(paginator)
+
+    @property
+    def playing_position(self):
+        return self._position
 
     def _get_is_following(self):
         return self._can_follow and self._is_following
@@ -201,8 +208,9 @@ class LoopSelectorComponent(ControlSurfaceComponent):
 
     @subject_slot('playing_position')
     def _on_playing_position_changed(self):
-        self._update_page_and_playhead_leds()
-        self._update_page_selection()
+        #self._update_page_and_playhead_leds()
+        #self._update_page_selection()
+        self.notify_playing_position()
 
     @subject_slot('playing_status')
     def _on_playing_status_changed(self):
@@ -242,8 +250,8 @@ class LoopSelectorComponent(ControlSurfaceComponent):
                 page_colors[page + 1:] = old_tail_values
 
         if self.is_enabled() and self._has_running_clip():
-            position = self._sequencer_clip.playing_position
-            visible_page = int(position / self._page_length_in_beats) - self.page_offset
+            self._position = self._sequencer_clip.playing_position
+            visible_page = int(self._position / self._page_length_in_beats) - self.page_offset
             page_colors = self._page_colors
             if 0 <= visible_page < len(page_colors):
                 with save_page_color(page_colors, visible_page):
@@ -289,7 +297,7 @@ class LoopSelectorComponent(ControlSurfaceComponent):
 
             def color_for_page(absolute_page):
                 if l_start <= absolute_page < l_start + l_length:
-                    return 'LoopSelector.InsideLoopStartBar' if absolute_page % pages_per_measure == 0 else 'LoopSelector.InsideLoop'
+                    return 'LoopSelector.InsideLoopStartBar' if absolute_page % pages_per_measure == 0 else 'LoopSelector.InsideLoop'    # 0
                 else:
                     return 'LoopSelector.OutsideLoop'
 
@@ -314,8 +322,9 @@ class LoopSelectorComponent(ControlSurfaceComponent):
         """ update hardware leds to match precomputed map """
         if self.is_enabled() and matrix:
             for button, color in izip(matrix, self._page_colors):
-                if button:
-                    button.set_light(color)
+                if button and (color == 'LoopSelector.Playhead' or color == 'LoopSelector.OutsideLoop' or isinstance(button, DoublePressElement)):
+                    if color == 'LoopSelector.Playhead' or (not hasattr(button, '_skin_name') or button._skin_name == 'NoteEditor.StepEmpty'):
+                        button.set_light(color)
 
     def _jump_to_page(self, next_page):
         start, length = self._get_loop_in_pages()
@@ -441,9 +450,12 @@ class LoopSelectorComponent(ControlSurfaceComponent):
     def _can_follow(self):
         return True
 
+
+    """this must match up with step seq for loop timer"""
+
     @property
     def _page_length_in_beats(self):
-        return clamp(self._paginator.page_length, 0.5, self._one_measure_in_beats)
+        return clamp(self._paginator.page_length, 0.25, self._one_measure_in_beats)   # 0.5      this can be altered for page size. but must alter step seq comp to match
 
     @property
     def _one_measure_in_beats(self):
