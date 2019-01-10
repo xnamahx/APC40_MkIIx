@@ -8,7 +8,6 @@ from _Framework.ScrollComponent import ScrollComponent
 from _Framework.SubjectSlot import subject_slot, subject_slot_group
 from _Framework.Util import in_range, product
 
-from pushbase import special_session_component
 from .custom_special_session_component import CustomClipSlotCopyHandler
 
 
@@ -439,6 +438,7 @@ class CustomSessionComponent(CompoundComponent):
             button.set_light(button.is_pressed())
 
     def _update_select_buttons(self):
+
         selected_scene = self.song().view.selected_scene
         if self._next_scene_button != None:
             self._next_scene_button.set_light(selected_scene != self.song().scenes[-1])
