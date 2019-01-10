@@ -13,3 +13,7 @@ NUDGE_DOWN + CLIP = Copy/Paste
 Installation
 
 Drop this folder at C:\Program Files\Ableton 10\Resources\MIDI Remote Scripts
+
+![alt text](https://i.imgur.com/HS8qm3G.png)
+
+![alt text](https://i.imgur.com/mCzd1rQ.png)
