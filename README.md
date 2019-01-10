@@ -17,3 +17,5 @@ Drop this folder at C:\Program Files\Ableton 10\Resources\MIDI Remote Scripts
 ![alt text](https://i.imgur.com/HS8qm3G.png)
 
 ![alt text](https://i.imgur.com/mCzd1rQ.png)
+
+![alt text](https://i.imgur.com/6ahJ1v0.mp4)
