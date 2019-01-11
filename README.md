@@ -19,3 +19,7 @@ Drop this folder at C:\Program Files\Ableton 10\Resources\MIDI Remote Scripts
 ![alt text](https://i.imgur.com/mCzd1rQ.png)
 
 https://i.imgur.com/LGx6NW5.gif
+
+thanks to:
+http://martinpechmann.github.io/APC400000/
+https://github.com/cylab/APCequencer
