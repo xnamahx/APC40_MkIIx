@@ -1,7 +1,5 @@
 Custom midi script for APC 40 MKII modified from Ableton's live 10 default
 
-Descriton
-
 SHIFT + TAP TEMPO = Metronome 
 
 SHIFT + Nudge = Nudge 
@@ -10,9 +8,11 @@ METRONOME + CLIP = Delete
 
 NUDGE_DOWN + CLIP = Copy/Paste 
 
-Installation
+User Mode toggles between sequencer and melodic.
 
-Drop this folder at C:\Program Files\Ableton 10\Resources\MIDI Remote Scripts
+Install
+
+Uncompres the release file at C:\Program Files\Ableton 10\Resources\MIDI Remote Scripts
 
 ![alt text](https://i.imgur.com/HS8qm3G.png)
 
